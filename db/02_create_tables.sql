@@ -96,3 +96,89 @@ CREATE TABLE products (
 
 
 --5.Product files table
+CREATE TABLE product_files (
+    id SERIAL PRIMARY KEY,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    file_path VARCHAR(255) NOT NULL,
+    file_name VARCHAR(100) NOT NULL,
+    mime_type VARCHAR(100),
+    file_size INTEGER NOT NULL CHECK (file_size > 0 AND file_size <= 52428800), -- 50MB
+    upload_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Constraints
+    CONSTRAINT product_files_name_length CHECK (LENGTH(file_name) >= 1),
+    CONSTRAINT product_files_path_format CHECK (file_path ~* '^[A-Za-z0-9_\-./]+$'),
+    UNIQUE(product_id, file_name)
+);
+
+-- For faster access Index 
+CREATE INDEX idx_product_files_product_id ON product_files(product_id);
+
+
+-- 6.wallet table
+CREATE TABLE wallets (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    balance DECIMAL(12,2) NOT NULL DEFAULT 0 CHECK (balance >= 0),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_wallets_user_id ON wallets(user_id);
+
+
+-- 7. transaction table
+CREATE TABLE transactions (
+    id SERIAL PRIMARY KEY,
+    from_wallet_id INTEGER REFERENCES wallets(id) ON DELETE SET NULL,
+    to_wallet_id INTEGER REFERENCES wallets(id) ON DELETE SET NULL,
+    amount DECIMAL(12,2) NOT NULL CHECK (amount > 0),
+    type transaction_type NOT NULL,
+    status transaction_status DEFAULT 'pending',
+    description TEXT,
+    reference_id VARCHAR(100),
+    balance_after_from DECIMAL(12,2),
+    balance_after_to DECIMAL(12,2),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Constraints
+    CONSTRAINT transactions_transfer_wallets CHECK (
+        (type = 'transfer' AND from_wallet_id IS NOT NULL AND to_wallet_id IS NOT NULL AND from_wallet_id != to_wallet_id) OR
+        (type != 'transfer')
+    )
+);
+
+-- Indexes
+CREATE INDEX idx_transactions_from_wallet ON transactions(from_wallet_id);
+CREATE INDEX idx_transactions_to_wallet ON transactions(to_wallet_id);
+CREATE INDEX idx_transactions_status ON transactions(status);
+
+
+-- 8. CARTS TABLE
+CREATE TABLE carts (
+    id SERIAL PRIMARY KEY,
+    buyer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    is_active BOOLEAN DEFAULT TRUE,
+    total_price DECIMAL(12,2) DEFAULT 0 CHECK (total_price >= 0),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_carts_buyer_active ON carts(buyer_id, is_active);
+
+
+-- 9. CART ITEMS TABLE
+CREATE TABLE cart_items (
+    id SERIAL PRIMARY KEY,
+    cart_id INTEGER NOT NULL REFERENCES carts(id) ON DELETE CASCADE,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
+    unit_price DECIMAL(12,2) NOT NULL CHECK (unit_price >= 0),
+    total_price DECIMAL(12,2) GENERATED ALWAYS AS (quantity * unit_price) STORED,
+    added_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Constraints
+    UNIQUE(cart_id, product_id)
+);
+
+CREATE INDEX idx_cart_items_cart ON cart_items(cart_id);
