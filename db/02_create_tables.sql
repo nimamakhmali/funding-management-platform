@@ -271,3 +271,48 @@ CREATE TABLE reviews (
     UNIQUE(product_id, user_id),
     CONSTRAINT reviews_comment_length CHECK (comment IS NULL OR LENGTH(comment) >= 10)
 );
+
+-- 15. WISHLISTS TABLE
+CREATE TABLE wishlists (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    added_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Constraints
+    UNIQUE(user_id, product_id)
+);
+
+
+-- 16. AUDIT LOGS TABLE
+CREATE TABLE audit_logs (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    action VARCHAR(100) NOT NULL,
+    ip_address INET,
+    details JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Constraints
+    CONSTRAINT audit_logs_action_length CHECK (LENGTH(action) >= 2)
+);
+
+
+-- COMMENTS ON TABLES
+COMMENT ON TABLE users IS 'User accounts with authentication and profile information';
+COMMENT ON TABLE user_roles IS 'Role-Based Access Control (RBAC) assignments';
+COMMENT ON TABLE categories IS 'Product categories with hierarchical structure';
+COMMENT ON TABLE products IS 'Scientific products available for purchase';
+COMMENT ON TABLE product_files IS 'Additional files associated with products';
+COMMENT ON TABLE wallets IS 'User digital wallets for transactions';
+COMMENT ON TABLE transactions IS 'Wallet transaction history';
+COMMENT ON TABLE carts IS 'Shopping carts for users';
+COMMENT ON TABLE cart_items IS 'Items in shopping carts';
+COMMENT ON TABLE orders IS 'Purchase orders';
+COMMENT ON TABLE order_items IS 'Items within orders';
+COMMENT ON TABLE tickets IS 'Support tickets';
+COMMENT ON TABLE ticket_responses IS 'Responses to support tickets';
+COMMENT ON TABLE reviews IS 'Product reviews and ratings';
+COMMENT ON TABLE wishlists IS 'User wishlists/favorites';
+COMMENT ON TABLE audit_logs IS 'System audit trail for security and compliance';
+
