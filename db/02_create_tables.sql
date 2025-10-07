@@ -254,3 +254,20 @@ CREATE TABLE ticket_responses (
 
     CONSTRAINT ticket_responses_message_length CHECK (LENGTH(message) >= 5)
 );
+
+
+-- 14. REVIEWS TABLE
+CREATE TABLE reviews (
+    id SERIAL PRIMARY KEY,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    comment TEXT,
+    is_verified_purchase BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Constraints
+    UNIQUE(product_id, user_id),
+    CONSTRAINT reviews_comment_length CHECK (comment IS NULL OR LENGTH(comment) >= 10)
+);
