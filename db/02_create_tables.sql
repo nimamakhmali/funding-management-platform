@@ -222,3 +222,35 @@ CREATE TABLE order_items (
     UNIQUE(order_id, product_id)
 );
 
+-- 12. TICKETS TABLE
+CREATE TABLE tickets (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    subject VARCHAR(200) NOT NULL,
+    message TEXT NOT NULL,
+    status ticket_status DEFAULT 'open',
+    priority ticket_priority DEFAULT 'medium',
+    source ticket_source DEFAULT 'web',
+    assigned_to INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    closed_at TIMESTAMP WITH TIME ZONE,
+
+    CONSTRAINT tickets_subject_length CHECK (LENGTH(subject) >= 5),
+    CONSTRAINT tickets_message_length CHECK (LENGTH(message) >= 10)
+);
+
+
+-- 13. TICKET RESPONSES TABLE
+CREATE TABLE ticket_responses (
+    id SERIAL PRIMARY KEY,
+    ticket_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    message TEXT NOT NULL,
+    is_staff_response BOOLEAN DEFAULT FALSE,
+    attachments JSONB DEFAULT '[]'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT ticket_responses_message_length CHECK (LENGTH(message) >= 5)
+);
