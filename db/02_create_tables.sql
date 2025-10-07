@@ -182,3 +182,43 @@ CREATE TABLE cart_items (
 );
 
 CREATE INDEX idx_cart_items_cart ON cart_items(cart_id);
+
+-- 10. orders tables
+CREATE TABLE orders (
+    id SERIAL PRIMARY KEY,
+    buyer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    order_number VARCHAR(20) UNIQUE NOT NULL,
+    cart_id INTEGER REFERENCES carts(id) ON DELETE SET NULL,
+    transaction_id INTEGER REFERENCES transactions(id) ON DELETE SET NULL,
+    total_price DECIMAL(12,2) NOT NULL CHECK (total_price >= 0),
+    discount_amount DECIMAL(12,2) DEFAULT 0 CHECK (discount_amount >= 0),
+    final_price DECIMAL(12,2) GENERATED ALWAYS AS (total_price - discount_amount) STORED,
+    status order_status DEFAULT 'pending',
+    payment_method payment_method DEFAULT 'wallet',
+    tracking_code VARCHAR(50),
+    notes TEXT,
+    paid_at TIMESTAMP WITH TIME ZONE,
+    delivered_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+
+    -- Constraints
+    CONSTRAINT orders_order_number_format CHECK (order_number ~* '^ORD-[A-Z0-9]+$')
+);
+
+
+-- 11. order items table
+CREATE TABLE order_items (
+    id SERIAL PRIMARY KEY,
+    order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
+    price DECIMAL(12,2) NOT NULL CHECK (price >= 0),
+    total_price DECIMAL(12,2) GENERATED ALWAYS AS (quantity * price) STORED,
+    access_granted BOOLEAN DEFAULT FALSE,
+    download_url VARCHAR(255),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE(order_id, product_id)
+);
+
