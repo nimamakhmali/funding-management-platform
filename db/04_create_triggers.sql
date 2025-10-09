@@ -77,3 +77,70 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
+
+
+
+
+-- Function to log audit events
+CREATE OR REPLACE FUNCTION log_audit_event()
+RETURNS TRIGGER AS $$
+DECLARE
+    audit_action VARCHAR(100);
+    audit_details JSONB;
+BEGIN
+    -- determine action type
+    IF TG_OP = 'INSERT' THEN
+        audit_action := 'create_' || TG_TABLE_NAME;
+    ELSEIF TG_OP = 'UPDATE' THEN
+        audit_action := 'update_' || TG_TABLE_NAME;
+    ELSEIF TG_OP = 'DELETE' THEN
+        audit_action := 'delete_' || TG_TABLE_NAME;
+    END IF;
+
+    -- build details JSON
+    audit_details := jsonb_build_object(
+        'table', TG_TABLE_NAME,
+        'operation', TG_OP,
+        'record_id', COALESCE(NEW.id, OLD.id)
+    );
+
+
+    -- Add relevant fields based on table
+    IF TG_TABLE_NAME = 'users' THEN
+        audit_details := audit_details || jsonb_build_object(
+            'email', COALESCE(NEW.email, OLD.email),
+            'role', COALESCE(NEW.role, OLD.role)
+        );
+    ELSIF TG_TABLE_NAME = 'products' THEN
+        audit_details := audit_details || jsonb_build_object(
+            'title', COALESCE(NEW.title_fa, OLD.title_fa),
+            'price', COALESCE(NEW.price, OLD.price)
+        );
+    ELSIF TG_TABLE_NAME = 'orders' THEN
+        audit_details := audit_details || jsonb_build_object(
+            'order_number', COALESCE(NEW.order_number, OLD.order_number),
+            'total_price', COALESCE(NEW.total_price, OLD.total_price)
+        );
+    ELSIF TG_TABLE_NAME = 'transactions' THEN
+        audit_details := audit_details || jsonb_build_object(
+            'amount', COALESCE(NEW.amount, OLD.amount),
+            'type', COALESCE(NEW.type, OLD.type),
+            'status', COALESCE(NEW.status, OLD.status)
+        );
+    END IF;
+    
+    -- Insert audit log
+    INSERT INTO audit_logs (user_id, action, details)
+    VALUES (
+        COALESCE(NEW.seller_id, NEW.buyer_id, NEW.user_id, OLD.seller_id, OLD.buyer_id, OLD.user_id),
+        audit_action,
+        audit_details
+    );
+    
+    RETURN COALESCE(NEW, OLD);    
+
+END;
+$$ language 'plpgsql';
+
+
+
