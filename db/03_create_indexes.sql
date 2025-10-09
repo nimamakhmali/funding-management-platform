@@ -35,3 +35,47 @@ CREATE INDEX idx_categories_order     ON categories(order_index);
 -- Full-text search on category names
 CREATE INDEX idx_categories_name_fa_gin ON categories USING gin(to_tsvector('persian', name_fa));
 CREATE INDEX idx_categories_name_en_gin ON categories USING gin(to_tsvector('english', name_en));
+
+--products -> tables
+
+-- Primary lookup indexes
+CREATE INDEX idx_products_seller_id   ON products(seller_id);
+CREATE INDEX idx_products_category_id ON products(category_id);
+CREATE INDEX idx_products_slug        ON products(slug);
+
+-- Status and visibility
+CREATE INDEX idx_products_is_active       ON products(is_active) WHERE is_active = TRUE;
+CREATE INDEX idx_products_featured        ON products(featured) WHERE featured = TRUE;
+CREATE INDEX idx_products_active_featured ON products(is_active, featured) WHERE is_active = TRUE AND featured = TRUE;
+
+-- Price and sorting
+CREATE INDEX idx_products_price      ON products(price);
+CREATE INDEX idx_products_created_at ON products(created_at);
+CREATE INDEX idx_products_updated_at ON products(updated_at);
+
+-- Statistics
+CREATE INDEX idx_products_views_count ON products(views_count);
+CREATE INDEX idx_products_download_count ON products(download_count);
+
+-- File type filtering
+CREATE INDEX idx_products_file_type ON products(file_type);
+
+-- Full-text search on product content
+CREATE INDEX idx_products_title_fa_gin ON products USING gin(to_tsvector('persian', title_fa));
+CREATE INDEX idx_products_title_en_gin ON products USING gin(to_tsvector('english', title_en));
+CREATE INDEX idx_products_description_fa_gin ON products USING gin(to_tsvector('persian', description_fa));
+CREATE INDEX idx_products_description_en_gin ON products USING gin(to_tsvector('english', description_en));
+
+-- JSONB tags search
+CREATE INDEX idx_products_tags_gin ON products USING gin(tags);
+
+-- Composite indexes for common queries
+CREATE INDEX idx_products_category_active_created ON products(category_id, is_active, created_at) WHERE is_active = TRUE;
+CREATE INDEX idx_products_seller_active_created ON products(seller_id, is_active, created_at) WHERE is_active = TRUE;
+
+
+-- products -> files tables
+
+CREATE INDEX idx_product_files_product_id  ON product_files(product_id);
+CREATE INDEX idx_product_files_upload_date ON product_files(upload_date);
+CREATE INDEX idx_product_files_file_size   ON product_files(file_size);
