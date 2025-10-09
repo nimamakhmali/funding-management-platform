@@ -79,3 +79,32 @@ CREATE INDEX idx_products_seller_active_created ON products(seller_id, is_active
 CREATE INDEX idx_product_files_product_id  ON product_files(product_id);
 CREATE INDEX idx_product_files_upload_date ON product_files(upload_date);
 CREATE INDEX idx_product_files_file_size   ON product_files(file_size);
+
+--wallets 
+CREATE INDEX idx_wallets_user_id    ON wallets(user_id);
+CREATE INDEX idx_wallets_balance    ON wallets(balance);
+CREATE INDEX idx_wallets_updated_at ON wallets(updated_at);
+
+
+--transactions
+
+
+--wallet-based queries
+CREATE INDEX idx_transactions_from_wallet_id ON transactions(from_wallet_id) WHERE from_wallet_id IS NOT NULL;
+CREATE INDEX idx_transactions_to_wallet_id   ON transactions(to_wallet_id) WHERE to_wallet_id IS NOT NULL;
+
+--Transaction type and status
+CREATE INDEX idx_transactions_type ON transactions(type);
+CREATE INDEX idx_transactions_status ON transactions(status);
+CREATE INDEX idx_transactions_type_status ON transactions(type, status);
+
+--Time-based queries
+CREATE INDEX idx_transactions_created_at ON transactions(created_at);
+CREATE INDEX idx_transactions_amount     ON transactions(amount);
+
+--Reference ID for external systems
+CREATE INDEX idx_transactions_reference_id ON transactions(reference_id) WHERE reference_id IS NOT NULL;
+
+-- Composite indexes for common queries
+CREATE INDEX idx_transactions_wallet_created ON transactions(from_wallet_id, created_at) WHERE from_wallet_id IS NOT NULL;
+CREATE INDEX idx_transactions_wallet_to_created ON transactions(to_wallet_id, created_at) WHERE to_wallet_id IS NOT NULL;
