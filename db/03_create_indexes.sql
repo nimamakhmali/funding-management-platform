@@ -106,5 +106,44 @@ CREATE INDEX idx_transactions_amount     ON transactions(amount);
 CREATE INDEX idx_transactions_reference_id ON transactions(reference_id) WHERE reference_id IS NOT NULL;
 
 -- Composite indexes for common queries
-CREATE INDEX idx_transactions_wallet_created ON transactions(from_wallet_id, created_at) WHERE from_wallet_id IS NOT NULL;
+CREATE INDEX idx_transactions_wallet_created    ON transactions(from_wallet_id, created_at) WHERE from_wallet_id IS NOT NULL;
 CREATE INDEX idx_transactions_wallet_to_created ON transactions(to_wallet_id, created_at) WHERE to_wallet_id IS NOT NULL;
+
+
+-- carts table
+
+CREATE INDEX idx_carts_buyer_id   ON carts(buyer_id);
+CREATE INDEX idx_carts_created_at ON carts(created_at);
+CREATE INDEX idx_carts_updated_at ON carts(updated_at);
+
+-- carts item tables
+CREATE INDEX idx_cart_items_cart_id    ON cart_items(cart_id);
+CREATE INDEX idx_cart_items_product_id ON cart_items(product_id);
+CREATE INDEX idx_cart_items_added_at   ON cart_items(added_at);
+
+
+-- ORDERS TABLE INDEXES
+
+-- Primary lookup
+CREATE INDEX idx_orders_buyer_id ON orders(buyer_id);
+CREATE INDEX idx_orders_order_number ON orders(order_number);
+
+-- Status and processing
+CREATE INDEX idx_orders_status ON orders(status);
+CREATE INDEX idx_orders_payment_method ON orders(payment_method) WHERE payment_method IS NOT NULL;
+CREATE INDEX idx_orders_status_created ON orders(status, created_at);
+
+-- Time-based queries
+CREATE INDEX idx_orders_created_at ON orders(created_at);
+CREATE INDEX idx_orders_updated_at ON orders(updated_at);
+
+-- Tracking
+CREATE INDEX idx_orders_tracking_code ON orders(tracking_code) WHERE tracking_code IS NOT NULL;
+
+
+-- ORDER ITEMS TABLE INDEXES
+
+CREATE INDEX idx_order_items_order_id ON order_items(order_id);
+CREATE INDEX idx_order_items_product_id ON order_items(product_id);
+CREATE INDEX idx_order_items_price ON order_items(price);
+
