@@ -132,7 +132,12 @@ BEGIN
     -- Insert audit log
     INSERT INTO audit_logs (user_id, action, details)
     VALUES (
-        COALESCE(NEW.seller_id, NEW.buyer_id, NEW.user_id, OLD.seller_id, OLD.buyer_id, OLD.user_id),
+        COALESCE(NEW.seller_id,
+        NEW.buyer_id, 
+        NEW.user_id, 
+        OLD.seller_id, 
+        OLD.buyer_id, 
+        OLD.user_id ),
         audit_action,
         audit_details
     );
@@ -144,3 +149,51 @@ $$ language 'plpgsql';
 
 
 
+
+-- Function to validate wallet transactions
+CREATE OR REPLACE FUNCTION validate_wallet_transaction()
+RETURNS TRIGGER AS $$
+DECLARE
+    from_balance DECIMAL(12,2);
+    to_balance DECIMAL(12,2);
+BEGIN
+    -- Check if this is a transfer transaction
+    IF NEW.type = 'transfer' THEN
+        -- Get current balances
+        SELECT balance INTO from_balance FROM wallets WHERE id = NEW.from_wallet_id;
+        SELECT balance INTO to_balance FROM wallets WHERE id = NEW.to_wallet_id;
+        
+        -- Validate sufficient balance
+        IF from_balance < NEW.amount THEN
+            RAISE EXCEPTION 'Insufficient wallet balance. Available: %, Required: %', from_balance, NEW.amount;
+        END IF;
+        
+        -- Update balances atomically
+        UPDATE wallets SET balance = balance - NEW.amount WHERE id = NEW.from_wallet_id;
+        UPDATE wallets SET balance = balance + NEW.amount WHERE id = NEW.to_wallet_id;
+        
+        -- Update transaction history in both wallets
+        UPDATE wallets 
+        SET transaction_history = transaction_history || jsonb_build_object(
+            'type', 'transfer_out',
+            'amount', NEW.amount,
+            'to_wallet_id', NEW.to_wallet_id,
+            'timestamp', CURRENT_TIMESTAMP,
+            'balance_after', from_balance - NEW.amount
+        )
+        WHERE id = NEW.from_wallet_id;
+        
+        UPDATE wallets 
+        SET transaction_history = transaction_history || jsonb_build_object(
+            'type', 'transfer_in',
+            'amount', NEW.amount,
+            'from_wallet_id', NEW.from_wallet_id,
+            'timestamp', CURRENT_TIMESTAMP,
+            'balance_after', to_balance + NEW.amount
+        )
+        WHERE id = NEW.to_wallet_id;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
