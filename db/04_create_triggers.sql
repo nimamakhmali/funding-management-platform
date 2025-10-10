@@ -197,3 +197,113 @@ BEGIN
     RETURN NEW;
 END;
 $$ language 'plpgsql';
+
+
+
+
+-- Triggers
+
+--update timestamps triggers
+CREATE TRIGGER trigger_users_updated_at
+    BEFORE UPDATE ON users
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER trigger_categories_updated_at
+    BEFORE UPDATE ON categories
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER trigger_products_updated_at
+    BEFORE UPDATE ON products
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER trigger_wallets_updated_at
+    BEFORE UPDATE ON wallets
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER trigger_carts_updated_at
+    BEFORE UPDATE ON carts
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER trigger_orders_updated_at
+    BEFORE UPDATE ON orders
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER trigger_tickets_updated_at
+    BEFORE UPDATE ON tickets
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER trigger_reviews_updated_at
+    BEFORE UPDATE ON reviews
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Order number generation trigger
+CREATE TRIGGER trigger_orders_generate_number
+    BEFORE INSERT ON orders
+    FOR EACH ROW
+    EXECUTE FUNCTION generate_order_number();
+
+-- User wallet creation trigger
+CREATE TRIGGER trigger_users_create_wallet
+    AFTER INSERT ON users
+    FOR EACH ROW
+    EXECUTE FUNCTION create_user_wallet();
+
+-- Order total update triggers
+CREATE TRIGGER trigger_order_items_update_total
+    AFTER INSERT OR UPDATE OR DELETE ON order_items
+    FOR EACH ROW
+    EXECUTE FUNCTION update_order_total();
+
+-- Product statistics update trigger
+CREATE TRIGGER trigger_orders_update_product_stats
+    AFTER INSERT OR UPDATE ON orders
+    FOR EACH ROW
+    EXECUTE FUNCTION update_product_stats();
+
+-- Wallet transaction validation trigger
+CREATE TRIGGER trigger_transactions_validate_wallet
+    BEFORE INSERT ON transactions
+    FOR EACH ROW
+    EXECUTE FUNCTION validate_wallet_transaction();
+
+-- Audit logging triggers (selective - only for important tables)
+CREATE TRIGGER trigger_users_audit
+    AFTER INSERT OR UPDATE OR DELETE ON users
+    FOR EACH ROW
+    EXECUTE FUNCTION log_audit_event();
+
+CREATE TRIGGER trigger_products_audit
+    AFTER INSERT OR UPDATE OR DELETE ON products
+    FOR EACH ROW
+    EXECUTE FUNCTION log_audit_event();
+
+CREATE TRIGGER trigger_orders_audit
+    AFTER INSERT OR UPDATE OR DELETE ON orders
+    FOR EACH ROW
+    EXECUTE FUNCTION log_audit_event();
+
+CREATE TRIGGER trigger_transactions_audit
+    AFTER INSERT OR UPDATE OR DELETE ON transactions
+    FOR EACH ROW
+    EXECUTE FUNCTION log_audit_event();
+
+
+-- COMMENTS ON TRIGGERS
+
+COMMENT ON FUNCTION update_updated_at_column() IS 'Automatically updates the updated_at timestamp';
+COMMENT ON FUNCTION generate_order_number() IS 'Generates unique order numbers';
+COMMENT ON FUNCTION create_user_wallet() IS 'Creates a wallet for new users';
+COMMENT ON FUNCTION update_order_total() IS 'Updates order total when items change';
+COMMENT ON FUNCTION update_product_stats() IS 'Updates product download statistics';
+COMMENT ON FUNCTION log_audit_event() IS 'Logs audit events for security and compliance';
+COMMENT ON FUNCTION validate_wallet_transaction() IS 'Validates and processes wallet transactions atomically';
+
+
