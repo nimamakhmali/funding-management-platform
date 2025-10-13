@@ -1,9 +1,11 @@
 --wallet functions
 
+
 -- Function to add funds to wallet
 CREATE OR REPLACE FUNCTION add_wallet_funds(
     p_user_id INTEGER,
-    p_amount DECIMAL(12,2),
+    p_amount DECIMAL(12, 2),
+    
     p_description TEXT DEFAULT NULL
 )
 RETURNS BOOLEAN AS $$
@@ -147,3 +149,5 @@ BEGIN
     RETURN transaction_id;
 END;
 $$ LANGUAGE plpgsql;
+
+
