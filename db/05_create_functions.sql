@@ -151,3 +151,19 @@ END;
 $$ LANGUAGE plpgsql;
 
 
+
+--products
+
+
+--function to increment product views
+CREATE OR REPLACE FUNCTION increament_product_views(p_product_id INTEGER)
+RETURNS VOID AS $$
+BEGIN
+    UPDATE products
+    SET views_count = views_count + 1
+    WHERE id = p_product_id AND is_active = TRUE;
+
+END;
+$$ LANGUAGE plpgsql;
+
+
