@@ -167,6 +167,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 
+
 -- Function to get product average rating
 CREATE OR REPLACE FUNCTION get_product_rating(p_product_id INTEGER)
 RETURNS DECIMAL(3,2) AS $$
@@ -180,3 +181,20 @@ BEGIN
     RETURN COALESCE(avg_rating, 0);
 END;
 $$ LANGUAGE plpgsql;
+
+
+
+-- Function to get product review count
+CREATE OR REPLACE FUNCTION get_product_review_count(p_product_id INTEGER)
+RETURNS INTEGER AS $$
+DECLARE 
+    review_count INTEGER;
+BEGIN
+    SELECT COUNT(*) INTO review_count
+    FROM reviews
+    WHERE product_id = p_product_id;
+
+    RETURN COALESCE(review_count, 0);
+END;
+$$ LANGUAGE plpgsql;
+
