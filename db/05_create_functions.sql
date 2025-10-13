@@ -198,3 +198,60 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+
+
+-- Order Functions 
+
+
+-- function to create order from cart
+CREATE OR REPLACE FUNCTION create_order_from_cart(
+    p_buyer_id INTEGER,
+    p_payment_method payment_method DEFAULT 'wallet'
+)
+RETURNS INTEGER AS $$
+DECLARE
+    cart_record RECORD;
+    order_id INTEGER;
+    total_amount DECIMAL(10,2) :=0;
+    item_record RECORD;
+BEGIN
+    --get cart
+    SELECT * INTO cart_record FROM carts WHERE buyer_id = p_buyer_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Cart not found for user %', p_buyer_id;
+    END IF;
+
+    -- Calculate total
+    SELECT COALESCE(SUM(p.price * ci.quantity), 0) INTO total_amount   
+    FROM cart_items ci
+    JOIN products p ON ci.product_id = p.id
+    WHERE ci.cart_id = cart_record.id AND p.is_active = TRUE;
+   
+    IF total_amount = 0 THEN
+        RAISE EXCEPTION 'Cart is empty or contains only inactive products';
+    END IF;      
+    
+    
+    -- Create order
+    INSERT INTO orders (buyer_id, total_price, payment_method)
+    VALUES (p_buyer_id, total_amount, p_payment_method)
+    RETURNING id INTO order_id;
+    
+    -- Add order items
+    FOR item_record IN 
+        SELECT ci.product_id, ci.quantity, p.price
+        FROM cart_items ci
+        JOIN products p ON ci.product_id = p.id
+        WHERE ci.cart_id = cart_record.id AND p.is_active = TRUE
+    LOOP
+        INSERT INTO order_items (order_id, product_id, quantity, price, total_price)
+        VALUES (order_id, item_record.product_id, item_record.quantity, item_record.price, 
+                item_record.quantity * item_record.price);
+    END LOOP;
+    
+    -- Clear cart
+    DELETE FROM cart_items WHERE cart_id = cart_record.id;
+    
+    RETURN order_id;
+END;
+$$ LANGUAGE plpgsql;    
