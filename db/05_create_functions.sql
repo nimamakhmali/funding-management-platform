@@ -167,3 +167,16 @@ END;
 $$ LANGUAGE plpgsql;
 
 
+-- Function to get product average rating
+CREATE OR REPLACE FUNCTION get_product_rating(p_product_id INTEGER)
+RETURNS DECIMAL(3,2) AS $$
+DECLARE
+    avg_rating DECIMAL(3,2);
+BEGIN
+    SELECT ROUND(AVG(rating)::DECIMAL, 2) INTO avg_rating
+    FROM reviews
+    WHERE product_id = p_product_id;
+
+    RETURN COALESCE(avg_rating, 0);
+END;
+$$ LANGUAGE plpgsql;
