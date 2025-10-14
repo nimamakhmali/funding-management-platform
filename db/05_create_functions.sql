@@ -255,3 +255,68 @@ BEGIN
     RETURN order_id;
 END;
 $$ LANGUAGE plpgsql;    
+
+
+
+
+
+-- Function to process order payment
+CREATE OR REPLACE FUNCTION process_order_payment(
+    p_order_id INTEGER,
+    p_payment_method payment_method
+)
+RETURNS BOOLEAN AS $$
+DECLARE
+    order_record RECORD;
+    buyer_wallet RECORD;
+    transaction_id INTEGER;
+BEGIN
+    -- Get order
+    SELECT * INTO order_record FROM orders WHERE id = p_order_id;
+    
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Order not found';
+    END IF;
+    
+    IF order_record.status != 'pending' THEN
+        RAISE EXCEPTION 'Order is not in pending status';
+    END IF;
+    
+    -- Process payment based on method
+    IF p_payment_method = 'wallet' THEN
+        -- Get buyer wallet
+        SELECT * INTO buyer_wallet FROM wallets WHERE user_id = order_record.buyer_id;
+        
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'Buyer wallet not found';
+        END IF;
+        
+        -- Check sufficient balance
+        IF buyer_wallet.balance < order_record.total_price THEN
+            RAISE EXCEPTION 'Insufficient wallet balance';
+        END IF;
+        
+        -- Deduct from wallet
+        PERFORM deduct_wallet_funds(
+            order_record.buyer_id, 
+            order_record.total_price, 
+            'Payment for order ' || order_record.order_number
+        );
+        
+        -- Create transaction record
+        INSERT INTO transactions (from_wallet_id, amount, type, status, description)
+        VALUES (buyer_wallet.id, order_record.total_price, 'purchase', 'completed', 
+                'Payment for order ' || order_record.order_number)
+        RETURNING id INTO transaction_id;
+    END IF;
+    
+    -- Update order status
+    UPDATE orders 
+    SET status = 'paid',
+        payment_method = p_payment_method,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = p_order_id;
+    
+    RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql;
