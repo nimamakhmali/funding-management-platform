@@ -1,13 +1,16 @@
 --wallet functions
 
 
+
 -- Function to add funds to wallet
 CREATE OR REPLACE FUNCTION add_wallet_funds(
     p_user_id INTEGER,
     p_amount DECIMAL(12, 2),
-    
+
+    p_transaction_type transaction_type DEFAULT 'deposit',
     p_description TEXT DEFAULT NULL
 )
+
 RETURNS BOOLEAN AS $$
 DECLARE
     wallet_record RECORD;
@@ -57,6 +60,7 @@ CREATE OR REPLACE FUNCTION deduct_wallet_funds(
     p_amount DECIMAL(12,2),
     p_description TEXT DEFAULT NULL
 )
+
 RETURNS BOOLEAN AS $$
 DECLARE
     wallet_record RECORD;
@@ -152,7 +156,7 @@ $$ LANGUAGE plpgsql;
 
 
 
---products
+--products functions
 
 
 --function to increment product views
@@ -320,3 +324,30 @@ BEGIN
     RETURN TRUE;
 END;
 $$ LANGUAGE plpgsql;
+
+
+-- search functions
+
+-- function to search products with filters 
+
+CREATE OR REPLACE FUNCTION search_products(
+    p_search_term TEXT DEFAULT NULL,
+    p_category_id INTEGER DEFAULT NULL,
+    p_min_price DECIMAL(10,2) DEFAULT NULL,
+    p_max_price DECIMAL(10,2) DEFAULT NULL,
+    p_file_type file_type DEFAULT NULL,
+    p_language language_preference DEFAULT 'fa',
+    p_limit INTEGER DEFAULT 20,
+    p_offset INTEGER DEFAULT 0
+
+)
+RETURNS TABLE (
+    id INTEGER,
+    title VARCHAR(200),
+
+
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        p.id,
