@@ -344,10 +344,47 @@ CREATE OR REPLACE FUNCTION search_products(
 RETURNS TABLE (
     id INTEGER,
     title VARCHAR(200),
-
+    description TEXT,
+    price DECIMAL(10,2),
+    category_name VARCHAR(100),
+    seller_name VARCHAR(100),
+    views_count INTEGER,
+    download_count INTEGER,
+    average_rating DECIMAL(3,2),
+    review_count INTEGER,
+    created_at TIMESTAMP WITH TIME ZONE
 
 ) AS $$
 BEGIN
     RETURN QUERY
     SELECT
         p.id,
+        CASE WHEN p_language = 'fa' THEN p.title_fa ELSE p.title_en END as title,
+        CASE WHEN p_language = 'fa' THEN p.description_fa ELSE p.description_en END as description,
+        p.price,
+        CASE WHEN p_language = 'fa' THEN c.name_fa ELSE c.name_en END as category_name,
+        u.full_name as seller_name,
+        p.views_count,
+        p.download_count,
+        get_product_rating(p.id) as average_rating,
+        get_product_review_count(p.id) as review_count,
+        p.created_at
+    FROM products p
+    JOIN categories c ON p.category_id = c.id
+    JOIN users u ON p.seller_id = u.id
+    WHERE p.is_active = TRUE
+        AND (p_search_term IS NULL OR (
+            CASE WHEN p_language = 'fa' THEN 
+                to_tsvector('persian', p.title_fa || ' ' || p.description_fa) @@ plainto_tsquery('persian', p_search_term)
+            ELSE 
+                to_tsvector('english', p.title_en || ' ' || p.description_en) @@ plainto_tsquery('english', p_search_term)
+            END
+        ))
+        AND (p_category_id IS NULL OR p.category_id = p_category_id)
+        AND (p_min_price IS NULL OR p.price >= p_min_price)
+        AND (p_max_price IS NULL OR p.price <= p_max_price)
+        AND (p_file_type IS NULL OR p.file_type = p_file_type)
+    ORDER BY p.created_at DESC
+    LIMIT p_limit OFFSET p_offset;
+END;
+$$ LANGUAGE plpgsql;
