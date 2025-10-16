@@ -131,3 +131,86 @@ WHERE up.role IN ('seller', 'admin')
     AND up.is_active = TRUE
     AND up.products_sold > 0
 ORDER BY up.seller_rating DESC, up.products_sold DESC;
+
+
+-- order views 
+
+-- view for order details with items
+CREATE OR REPLACE VIEW order_details AS
+SELECT 
+    o.id,
+    o.order_number,
+    o.buyer_id,
+    o.total_price,
+    o.status,
+    o.payment_method,
+    o.tracking_code,
+    o.notes,
+    o.created_at,
+    o.updated_at,
+
+    -- buyer information
+    u.username as buyer_username,
+    u.full_name as buyer_name,
+    u.email as buyer_email,
+
+    -- order items summary
+    COUNT(oi.id) as item_count,
+    STRING_AGG(p.title_fa, ', ') as product_titles,
+
+    -- payment status
+    CASE 
+        WHEN o.status = 'pending' THEN 'Awaiting Payment'
+        WHEN o.status = 'paid' THEN 'Payment Confirmed'
+        WHEN o.status = 'shipped' THEN 'Shipped'
+        WHEN o.status = 'delivered' THEN 'Delivered'
+        WHEN o.status = 'cancelled' THEN 'Cancelled'
+        WHEN o.status = 'refunded' THEN 'Refunded'
+        ELSE 'Unknown'
+    END as status_description
+
+    
+FROM orders o
+LEFT JOIN users u ON o.buyer_id = u.id
+LEFT JOIN order_items oi ON o.id = oi.order_id
+LEFT JOIN products p ON oi.product_id = p.id
+GROUP BY o.id, u.id;
+
+-- View for order items with product details
+CREATE OR REPLACE VIEW order_items_details AS
+SELECT 
+    oi.id,
+    oi.order_id,
+    oi.product_id,
+    oi.quantity,
+    oi.price,
+    oi.total_price,
+    
+    -- Order information
+    o.order_number,
+    o.status as order_status,
+    o.created_at as order_date,
+    
+    -- Product information
+    p.title_fa,
+    p.title_en,
+    p.slug as product_slug,
+    p.file_type,
+    
+    -- Seller information
+    seller.username as seller_username,
+    seller.full_name as seller_name,
+    
+    -- Buyer information
+    buyer.username as buyer_username,
+    buyer.full_name as buyer_name
+    
+FROM order_items oi
+JOIN orders o ON oi.order_id = o.id
+JOIN products p ON oi.product_id = p.id
+JOIN users seller ON p.seller_id = seller.id
+JOIN users buyer ON o.buyer_id = buyer.id;
+
+
+-- transaction views
+
