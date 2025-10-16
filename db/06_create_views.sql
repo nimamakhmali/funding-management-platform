@@ -258,3 +258,38 @@ LEFT JOIN wallets to_wallet ON t.to_wallet_id = to_wallet.id
 LEFT JOIN users to_user ON to_wallet.user_id = to_user.id
 ORDER BY t.created_at DESC;
           
+
+-- review views
+
+-- View for product reviews with user details
+CREATE OR REPLACE VIEW product_reviews AS
+SELECT 
+    r.id,
+    r.product_id,
+    r.user_id,
+    r.rating,
+    r.comment,
+    r.is_verified_purchase,
+    r.created_at,
+    r.updated_at,
+    
+    -- Product information
+    p.title_fa as product_title,
+    p.slug as product_slug,
+    
+    -- User information
+    u.username,
+    u.full_name as reviewer_name,
+    
+    -- Seller information
+    seller.username as seller_username,
+    seller.full_name as seller_name
+    
+FROM reviews r
+JOIN products p ON r.product_id = p.id
+JOIN users u ON r.user_id = u.id
+JOIN users seller ON p.seller_id = seller.id
+ORDER BY r.created_at DESC;
+
+
+-- Ticket Views
