@@ -388,3 +388,102 @@ BEGIN
     LIMIT p_limit OFFSET p_offset;
 END;
 $$ LANGUAGE plpgsql;
+
+
+
+-- statistics functions
+
+-- function to get user statistics
+CREATE OR REPLACE FUNCTION get_user_status(p_user_id INTEGER)
+RETURNS JSONB AS $$
+DECLARE
+    stats JSONB;
+    user_record RECORD;
+    wallet_record RECORD;
+    product_count INTEGER;
+    order_count INTEGER;
+    total_spent DECIMAL(12,2);
+BEGIN
+    -- Get user info
+    SELECT * INTO user_record FROM users WHERE id = p_user_id;
+
+    -- Get wallet info
+    SELECT * INTO wallet_record FROM wallets WHERE user_id = p_user_id;
+
+    -- Get product count (for sellers)
+    SELECT COUNT(*) INTO product_count FROM products WHERE seller_id = p_user_id;
+
+    -- Get order count
+    SELECT COUNT(*) INTO order_count FROM orders WHERE buyer_id = p_user_id;
+
+    -- Get total spent
+    SELECT COALESCE(SUM(total_price), 0) INTO total_spent 
+    FROM orders WHERE buyer_id = p_user_id AND status IN ('paid', 'shipped', 'delivered');
+
+    -- Build stats JSON
+    stats := jsonb_build_object(
+        'user_id', p_user_id,
+        'username', user_record.username,
+        'full_name', user_record.full_name,
+        'role', user_record.role,
+        'wallet_balance', COALESCE(wallet_record.balance, 0),
+        'products_count', product_count,
+        'orders_count', order_count,
+        'total_spent', total_spent,
+        'created_at', user_record.created_at
+    );
+
+    RETURN stats;
+END;
+$$ LANGUAGE plpgsql;
+
+
+-- function to get system statistics
+CREATE OR REPLACE FUNCTION get_system_stats()
+RETURNS JSNOB AS $$
+DECLARE 
+    stats JSNOB;
+    user_count INTEGER;
+    product_count INTEGER;
+    order_count INTEGER;
+    total_revenue DECIMAL(12,2);
+    active_users INTEGER;
+BEGIN
+    -- Get counts
+    SELECT COUNT(*) INTO user_count FROM users WHERE is_active = TRUE;
+    SELECT COUNT(*) INTO product_count FROM products WHERE is_active = TRUE;
+    SELECT COUNT(*) INTO order_count FROM orders;
+    SELECT COUNT(*) INTO active_users FROM users WHERE last_login > CURRENT_TIMESTAMP - INTERVAL '30 days';
+
+    -- Get total revenue
+    SELECT COALESCE(SUM(total_price), 0) INTO total_revenue 
+    FROM orders WHERE status IN ('paid', 'shipped', 'delivered');
+
+    -- Build stats JSON
+    stats := jsonb_build_object(
+        'total_users', user_count,
+        'active_users_30d', active_users,
+        'total_products', product_count,
+        'total_orders', order_count,
+        'total_revenue', total_revenue
+    );
+    RETURN stats;
+END;
+$$ LANGUAGE plpgsql;
+
+
+-- comments on functions
+
+
+COMMENT ON FUNCTION add_wallet_funds(INTEGER, DECIMAL, TEXT) IS 'Adds funds to a user wallet with transaction logging';
+COMMENT ON FUNCTION deduct_wallet_funds(INTEGER, DECIMAL, TEXT) IS 'Deducts funds from a user wallet with balance validation';
+COMMENT ON FUNCTION transfer_wallet_funds(INTEGER, INTEGER, DECIMAL, TEXT) IS 'Transfers funds between user wallets atomically';
+COMMENT ON FUNCTION increment_product_views(INTEGER) IS 'Increments product view counter';
+COMMENT ON FUNCTION get_product_rating(INTEGER) IS 'Calculates average rating for a product';
+COMMENT ON FUNCTION get_product_review_count(INTEGER) IS 'Gets total review count for a product';
+COMMENT ON FUNCTION create_order_from_cart(INTEGER, payment_method) IS 'Creates an order from user cart items';
+COMMENT ON FUNCTION process_order_payment(INTEGER, payment_method) IS 'Processes payment for an order';
+COMMENT ON FUNCTION search_products(TEXT, INTEGER, DECIMAL, DECIMAL, file_type, language_preference, INTEGER, INTEGER) IS 'Advanced product search with filters';
+COMMENT ON FUNCTION get_user_stats(INTEGER) IS 'Gets comprehensive statistics for a user';
+COMMENT ON FUNCTION get_system_stats() IS 'Gets system-wide statistics and metrics';
+
