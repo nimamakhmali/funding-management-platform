@@ -83,4 +83,51 @@ GROUP BY c.id, pc.id
 ORDER BY c.order_index, c.name_fa;
 
 
+-- user views
 
+
+-- view for user profiles with statistics
+CREATE OR REPLACE VIEW user_profiles AS 
+SELECT
+    u.id,
+    u.username,
+    u.email,
+    u.full_name,
+    u.role,
+    u.language_preference,
+    u.theme_preference,
+    u.is_active,
+    u.created_at,
+    u.last_login,
+
+    -- wallet information 
+    w.balance as wallet_balance,
+
+    --statistics
+    COUNT(DISTINCT p..id) as products_sold,
+    COUNT(DISTINCT o.id)  as order_made,
+    COALESCE(SUM(CASE WHEN o.status IN ('paid', 'shipped', 'delivered') THEN o.total_price ELSE 0 END), 0) as total_spent,
+    COALESCE(SUM(CASE WHEN p.seller_id = u.id THEN p.download_count ELSE 0 END), 0) as total_downloads,
+
+
+    -- rating as seller 
+    COALESCE(AVG(seller_reviews.rating), 0) as seller_rating,
+    COUNT(seller_reviews.id) as seller_review_count
+
+FROM users u
+LEFT JOIN wallets  w ON u.id = w.user_id
+LEFT JOIN products p ON u.id = p.seller_id AND p.is_active = TRUE
+LEFT JOIN orders   o ON u.id = o.buyer_id
+LEFT JOIN reviews seller_reviews ON p.id = seller_reviews.product_id
+GROUP BY u.id, w.id;
+
+-- View for active sellers
+CREATE OR REPLACE VIEW active_sellers AS
+SELECT 
+    up.*,
+    ROW_NUMBER() OVER (ORDER BY up.seller_rating DESC, up.products_sold DESC) as seller_rank
+FROM user_profiles up
+WHERE up.role IN ('seller', 'admin') 
+    AND up.is_active = TRUE
+    AND up.products_sold > 0
+ORDER BY up.seller_rating DESC, up.products_sold DESC;
