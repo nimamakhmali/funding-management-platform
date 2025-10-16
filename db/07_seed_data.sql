@@ -36,3 +36,27 @@ INSERT INTO categories (name_fa, name_en, slug, description, parent_id, is_activ
 ('فیزیک', 'Physics', 'physics', 'فیزیک و مکانیک کوانتومی', 3, TRUE, 2),
 ('شیمی', 'Chemistry', 'chemistry', 'شیمی و مواد', 3, TRUE, 3),
 ('زیست‌شناسی', 'Biology', 'biology', 'زیست‌شناسی و ژنتیک', 3, TRUE, 4);
+
+
+-- users seed data
+
+
+-- Admin user
+INSERT INTO users (username, password_hash, email, full_name, role, is_active, is_staff, is_superuser) VALUES
+('admin', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/8KzKz2K', 'admin@sci-market.ir', 'مدیر سیستم', 'admin', TRUE, TRUE, TRUE);
+
+-- Support user
+INSERT INTO users (username, password_hash, email, full_name, role, is_active, is_staff) VALUES
+('support', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/8KzKz2K', 'support@sci-market.ir', 'پشتیبانی', 'support', TRUE, TRUE);
+
+-- Sample sellers
+INSERT INTO users (username, password_hash, email, full_name, role, is_active) VALUES
+('seller1', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/8KzKz2K', 'seller1@sci-market.ir', 'علی احمدی', 'seller', TRUE),
+('seller2', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/8KzKz2K', 'seller2@sci-market.ir', 'فاطمه محمدی', 'seller', TRUE),
+('seller3', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/8KzKz2K', 'seller3@sci-market.ir', 'حسن رضایی', 'seller', TRUE);
+
+-- Sample buyers
+INSERT INTO users (username, password_hash, email, full_name, role, is_active) VALUES
+('buyer1', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/8KzKz2K', 'buyer1@sci-market.ir', 'مریم کریمی', 'buyer', TRUE),
+('buyer2', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/8KzKz2K', 'buyer2@sci-market.ir', 'محمد حسینی', 'buyer', TRUE),
+('buyer3', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/8KzKz2K', 'buyer3@sci-market.ir', 'زهرا نوری', 'buyer', TRUE);
