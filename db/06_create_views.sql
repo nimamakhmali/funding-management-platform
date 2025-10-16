@@ -53,4 +53,34 @@ ORDER BY pd.created_at DESC;
 
 
 
+-- view for product categories with product counts
+CREATE OR REPLACE VIEW category_stats AS
+SELECT
+    c.id,
+    c.name_fa,
+    c.name_en,
+    c.slug,
+    c.description,
+    c.parent_id,
+    c.is_active,
+    c.order_index,
+    c.created_at,
+
+    -- statistics
+    COUNT(p.id) as product_count,
+    COALESCE(AVG(p.price), 0) as average_price,
+    COALESCE(SUM(p.views_count), 0) as total_views,
+    COALESCE(SUM(p.download_count), 0) as total_downloads,
+
+    -- parent category name
+    pc.name_fa as parent_name_fa,
+    pc.name_en as parent_name_en
+
+FROM categories C
+LEFT JOIN products p ON c.id = p.category_id AND p.is_active = TRUE
+LEFT JOIN categories pc ON c.parent_id = pc.id
+GROUP BY c.id, pc.id
+ORDER BY c.order_index, c.name_fa;
+
+
 
