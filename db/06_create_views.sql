@@ -214,3 +214,47 @@ JOIN users buyer ON o.buyer_id = buyer.id;
 
 -- transaction views
 
+-- view for transaction history with user details
+CREATE OR REPLACE VIEW transaction_history AS 
+SELECT
+    t.id,
+    t.amount,
+    t.type,
+    t.status,
+    t.description,
+    t.reference_id,
+    r.created_at,
+
+    --form wallet information
+    from_user.username as from_username,
+    from_user.full_name as from_name,
+
+    -- to wallet information 
+    to_user.username as to_username,
+    to_user.full_name as to_name,
+
+    -- transaction type description
+    CASE t.type
+        WHEN 'deposit'  THEN 'Wallet Deposit'
+        WHEN 'withdraw' THEN 'Wallet Withdrawal'
+        WHEN 'transfer' THEN 'Wallet Transfer'
+        WHEN 'purchase' THEN 'Product Purchase'
+        WHEN 'refund'   THEN 'Order Refund'
+        ELSE 'Unknown'
+    END as type_description,
+
+    -- status description
+    CASE t.status
+        WHEN 'pending'   THEN 'Processing'
+        WHEN 'completed' THEN 'Completed'
+        WHEN 'failed'    THEN 'Failed'
+
+        ELSE as status_description
+
+FROM transactions t
+LEFT JOIN wallets from_wallet ON t.from_wallet_id = from_wallet.id
+LEFT JOIN users from_user ON from_wallet.user_id = from_user.id
+LEFT JOIN wallets to_wallet ON t.to_wallet_id = to_wallet.id
+LEFT JOIN users to_user ON to_wallet.user_id = to_user.id
+ORDER BY t.created_at DESC;
+          
