@@ -86,3 +86,98 @@ INSERT INTO products (seller_id, title_fa, title_en, slug, description_fa, descr
 (3, 'محاسبات عددی پیشرفته', 'Advanced Numerical Computing', 'advanced-numerical-computing', 'کتاب کامل محاسبات عددی با مثال‌های عملی', 'Complete book on numerical computing with practical examples', 13, 180000, 'pdf', '["mathematics", "numerical", "computing", "algorithms"]', TRUE, TRUE);
 
 
+
+
+
+
+
+
+-- REVIEWS SEED DATA
+
+
+-- Reviews for products
+INSERT INTO reviews (product_id, user_id, rating, comment, is_verified_purchase) VALUES
+(1, 6, 5, 'کتابخانه عالی و کامل. تمام نیازهای پردازش تصویر را پوشش می‌دهد.', TRUE),
+(1, 7, 4, 'کیفیت کد خوب است اما مستندات کمی کم است.', TRUE),
+(2, 6, 5, 'الگوریتم‌ها به خوبی پیاده‌سازی شده‌اند.', FALSE),
+(3, 7, 5, 'فریمورک بسیار کاربردی و به‌روز.', TRUE),
+(4, 8, 4, 'مدل دقت خوبی دارد اما نیاز به بهینه‌سازی دارد.', TRUE),
+(5, 6, 5, 'دیتاست بسیار کامل و باکیفیت.', TRUE);
+
+
+-- WISHLISTS SEED DATA
+
+
+-- Add some products to wishlists
+INSERT INTO wishlists (user_id, product_id) VALUES
+(6, 2),
+(6, 4),
+(7, 1),
+(7, 3),
+(8, 5);
+
+
+-- ORDERS SEED DATA
+
+
+-- Sample orders
+INSERT INTO orders (buyer_id, order_number, total_price, status, payment_method) VALUES
+(6, 'ORD-12345678', 150000, 'delivered', 'wallet'),
+(7, 'ORD-87654321', 300000, 'paid', 'wallet'),
+(8, 'ORD-11223344', 500000, 'shipped', 'gateway');
+
+-- Order items
+INSERT INTO order_items (order_id, product_id, quantity, price, total_price) VALUES
+(1, 1, 1, 150000, 150000),
+(2, 3, 1, 300000, 300000),
+(3, 4, 1, 500000, 500000);
+
+
+-- TICKETS SEED DATA
+
+
+-- Sample support tickets
+INSERT INTO tickets (user_id, subject, message, status, assigned_to) VALUES
+(6, 'مشکل در دانلود محصول', 'نمی‌توانم محصول خریداری شده را دانلود کنم. لطفاً راهنمایی کنید.', 'open', 2),
+(7, 'سوال در مورد کیف پول', 'چگونه می‌توانم کیف پول خود را شارژ کنم؟', 'closed', 2),
+(8, 'پیشنهاد بهبود', 'پیشنهاد می‌کنم قابلیت جستجوی پیشرفته اضافه شود.', 'in_progress', 2);
+
+-- Ticket responses
+INSERT INTO ticket_responses (ticket_id, user_id, message) VALUES
+(1, 2, 'لطفاً شماره سفارش خود را ارسال کنید تا مشکل را بررسی کنم.'),
+(2, 2, 'برای شارژ کیف پول، به بخش کیف پول در پنل کاربری مراجعه کنید.'),
+(3, 2, 'پیشنهاد شما ثبت شد و در نسخه بعدی اضافه خواهد شد.');
+
+
+-- AUDIT LOGS SEED DATA
+
+
+-- Sample audit logs
+INSERT INTO audit_logs (user_id, action, ip_address, details) VALUES
+(1, 'login', '192.168.1.100', '{"login_method": "email", "user_agent": "Mozilla/5.0"}'),
+(3, 'create_product', '192.168.1.101', '{"product_id": 1, "title": "کتابخانه پردازش تصویر Python"}'),
+(6, 'purchase', '192.168.1.102', '{"order_id": 1, "total_price": 150000}'),
+(7, 'create_review', '192.168.1.103', '{"product_id": 1, "rating": 5}');
+
+
+-- COMMENTS ON SEED DATA
+
+
+COMMENT ON TABLE categories IS 'Sample categories for scientific products';
+COMMENT ON TABLE users IS 'Sample users including admin, support, sellers, and buyers';
+COMMENT ON TABLE products IS 'Sample products across different scientific categories';
+COMMENT ON TABLE reviews IS 'Sample product reviews and ratings';
+COMMENT ON TABLE wishlists IS 'Sample user wishlists';
+COMMENT ON TABLE orders IS 'Sample orders with different statuses';
+COMMENT ON TABLE tickets IS 'Sample support tickets';
+COMMENT ON TABLE audit_logs IS 'Sample audit log entries';
+
+
+-- NOTES
+
+
+-- Password hash for all users: 'password123' (for development only)
+-- In production, use proper password hashing with bcrypt
+-- All prices are in Iranian Rial (IRR)
+-- Sample data is for development and testing purposes only
+
