@@ -323,10 +323,83 @@ SELECT
         WHEN 'closed'      THEN 'Closed'
         ELSE 'Unknown'
     END as status_description  
-      
+
 FROM tickets t
 JOIN users u ON t.user_id = u.id
 LEFT JOIN users support ON t.assigned_to = support.id
 LEFT JOIN ticket_responses tr ON t.id = tr.ticket_id
 GROUP BY t.id, u.id, support.id
 ORDER BY t.created_at DESC;
+
+
+
+-- Analytics Views
+
+-- view for daily sales statistics
+CREATE OR REPLACE VIEW daily_sales_stats AS 
+SELECT
+    DATE(created_at) as sale_date,
+    COUNT(*) as order_count,
+    SUM(total_price) as total_revenue,
+    AVG(total_price) as average_order_value,
+    COUNT(DISTINCT buyer_id) as unique_buyers
+FROM orders
+WHERE status IN ('paid', 'shipped', 'delivered')    
+GROUP BY DATE(created_at)
+ORDER BY sale_date DESC;
+
+
+--view for product performance
+CREATE OR REPLACE VIEW product_performance AS 
+SELECT
+    p.id,
+    p.title_fa,
+    p.price,
+    p.views_count,
+    p.download_count,
+    p.created_at,
+
+    -- sales statistics
+    COUNT(oi.id) as times_sold,
+    COALESCE(SUM(oi.quantity), 0) as total_quantity_sold,
+    COALESCE(SUM(oi.total_price), 0) as total_revenue,
+
+    -- rating statistics
+    COALESCE(AVG(r.rating), 0) as average_rating,
+    COUNT(r.id) as review_count,
+
+    
+    -- Performance metrics
+    CASE 
+        WHEN p.views_count > 0 THEN ROUND((p.download_count::DECIMAL / p.views_count) * 100, 2)
+        ELSE 0
+    END as conversion_rate,
+    
+    -- Seller information
+    u.username as seller_username,
+    u.full_name as seller_name
+    
+FROM products p
+LEFT JOIN order_items oi ON p.id = oi.product_id
+LEFT JOIN reviews r ON p.id = r.product_id
+LEFT JOIN users u ON p.seller_id = u.id
+WHERE p.is_active = TRUE
+GROUP BY p.id, u.id
+ORDER BY total_revenue DESC, p.views_count DESC;
+
+
+-- comments on views
+
+
+COMMENT ON VIEW product_details IS 'Comprehensive product information with statistics';
+COMMENT ON VIEW featured_products IS 'Featured products with popularity ranking';
+COMMENT ON VIEW category_stats IS 'Category information with product statistics';
+COMMENT ON VIEW user_profiles IS 'User profiles with comprehensive statistics';
+COMMENT ON VIEW active_sellers IS 'Active sellers ranked by performance';
+COMMENT ON VIEW order_details IS 'Order information with buyer and item details';
+COMMENT ON VIEW order_items_details IS 'Detailed order items with product and user information';
+COMMENT ON VIEW transaction_history IS 'Transaction history with user details';
+COMMENT ON VIEW product_reviews IS 'Product reviews with user and product information';
+COMMENT ON VIEW ticket_details IS 'Support tickets with user and response information';
+COMMENT ON VIEW daily_sales_stats IS 'Daily sales statistics and metrics';
+COMMENT ON VIEW product_performance IS 'Product performance metrics and analytics';
