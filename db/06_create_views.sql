@@ -293,3 +293,40 @@ ORDER BY r.created_at DESC;
 
 
 -- Ticket Views
+
+CREATE OR REPLACE VIEW ticket_details AS 
+SELECT
+    t.id,
+    t.subject,
+    t.message,
+    t.status,
+    t.created_at,
+    t.updated_at,
+
+    -- User Info
+    u.username  as user_username,
+    u.full_name as user_name,
+    u.email     as user_email,
+
+    -- Assigned support Info
+    support.username as assigned_username,
+    support.full_name as assigned_name,
+
+    --Response count
+    COUNT(tr.id) as response_count,
+    MAX(tr.created_at) as last_response_at,
+
+    --status description
+    CASE t.status
+        WHEN 'open' THEN 'Open'
+        WHEN 'in_progress' THEN 'In Progress'
+        WHEN 'closed'      THEN 'Closed'
+        ELSE 'Unknown'
+    END as status_description  
+      
+FROM tickets t
+JOIN users u ON t.user_id = u.id
+LEFT JOIN users support ON t.assigned_to = support.id
+LEFT JOIN ticket_responses tr ON t.id = tr.ticket_id
+GROUP BY t.id, u.id, support.id
+ORDER BY t.created_at DESC;
