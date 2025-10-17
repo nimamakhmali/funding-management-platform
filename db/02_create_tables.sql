@@ -1,3 +1,202 @@
+-- Core tables for Sci Market
+-- Assumes 01_create_enums.sql loaded
+
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- Users
+CREATE TABLE IF NOT EXISTS users (
+    id              BIGSERIAL PRIMARY KEY,
+    username        VARCHAR(50) UNIQUE,
+    password_hash   VARCHAR(255) NOT NULL,
+    email           VARCHAR(100) UNIQUE NOT NULL,
+    phone           VARCHAR(20) UNIQUE,
+    role            user_role NOT NULL DEFAULT 'buyer',
+    full_name       VARCHAR(100),
+    profile_picture VARCHAR(255),
+    language_preference language_preference NOT NULL DEFAULT 'fa',
+    theme_preference    theme_preference NOT NULL DEFAULT 'light',
+    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+    is_staff        BOOLEAN NOT NULL DEFAULT FALSE,
+    is_superuser    BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_login      TIMESTAMPTZ
+);
+
+-- User roles (RBAC)
+CREATE TABLE IF NOT EXISTS user_roles (
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role    user_role NOT NULL,
+    assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    assigned_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    PRIMARY KEY (user_id, role)
+);
+
+-- Categories
+CREATE TABLE IF NOT EXISTS categories (
+    id          BIGSERIAL PRIMARY KEY,
+    name_fa     VARCHAR(100) NOT NULL,
+    name_en     VARCHAR(100) NOT NULL,
+    slug        VARCHAR(120) UNIQUE NOT NULL,
+    description TEXT,
+    parent_id   BIGINT REFERENCES categories(id) ON DELETE SET NULL,
+    is_active   BOOLEAN NOT NULL DEFAULT TRUE,
+    order_index INTEGER NOT NULL DEFAULT 0,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Products
+CREATE TABLE IF NOT EXISTS products (
+    id              BIGSERIAL PRIMARY KEY,
+    seller_id       BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title_fa        VARCHAR(200) NOT NULL,
+    title_en        VARCHAR(200),
+    slug            VARCHAR(220) UNIQUE NOT NULL,
+    description_fa  TEXT NOT NULL,
+    description_en  TEXT,
+    category_id     BIGINT REFERENCES categories(id) ON DELETE SET NULL,
+    price           NUMERIC(12,2) NOT NULL CHECK (price >= 0),
+    file_path       VARCHAR(255),
+    file_type       file_type,
+    tags            JSONB,
+    views_count     BIGINT NOT NULL DEFAULT 0,
+    download_count  BIGINT NOT NULL DEFAULT 0,
+    preview_image   VARCHAR(255),
+    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+    is_featured     BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Product files
+CREATE TABLE IF NOT EXISTS product_files (
+    id          BIGSERIAL PRIMARY KEY,
+    product_id  BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    file_path   VARCHAR(255) NOT NULL,
+    file_name   VARCHAR(120) NOT NULL,
+    file_size   BIGINT CHECK (file_size <= 50*1024*1024), -- 50MB
+    upload_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Carts
+CREATE TABLE IF NOT EXISTS carts (
+    id         BIGSERIAL PRIMARY KEY,
+    buyer_id   BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Cart items
+CREATE TABLE IF NOT EXISTS cart_items (
+    id         BIGSERIAL PRIMARY KEY,
+    cart_id    BIGINT NOT NULL REFERENCES carts(id) ON DELETE CASCADE,
+    product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    quantity   INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
+    added_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (cart_id, product_id)
+);
+
+-- Orders
+CREATE TABLE IF NOT EXISTS orders (
+    id             BIGSERIAL PRIMARY KEY,
+    buyer_id       BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    order_number   VARCHAR(40) UNIQUE NOT NULL DEFAULT CONCAT('ORD-', substr(replace(uuid_generate_v4()::TEXT,'-',''),1,12)),
+    total_price    NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (total_price >= 0),
+    status         order_status NOT NULL DEFAULT 'pending',
+    payment_method payment_method,
+    tracking_code  VARCHAR(50),
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Order items
+CREATE TABLE IF NOT EXISTS order_items (
+    id               BIGSERIAL PRIMARY KEY,
+    order_id         BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    product_id       BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    quantity         INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
+    price            NUMERIC(12,2) NOT NULL,
+    total_price      NUMERIC(12,2) NOT NULL,
+    UNIQUE (order_id, product_id)
+);
+
+-- Wallets
+CREATE TABLE IF NOT EXISTS wallets (
+    id          BIGSERIAL PRIMARY KEY,
+    user_id     BIGINT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    balance     NUMERIC(14,2) NOT NULL DEFAULT 0 CHECK (balance >= 0),
+    transaction_history JSONB,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Transactions
+CREATE TABLE IF NOT EXISTS transactions (
+    id           BIGSERIAL PRIMARY KEY,
+    from_wallet  BIGINT REFERENCES wallets(id) ON DELETE SET NULL,
+    to_wallet    BIGINT REFERENCES wallets(id) ON DELETE SET NULL,
+    amount       NUMERIC(14,2) NOT NULL CHECK (amount > 0),
+    transaction_type transaction_type NOT NULL,
+    status       transaction_status NOT NULL DEFAULT 'pending',
+    description  TEXT,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Tickets
+CREATE TABLE IF NOT EXISTS tickets (
+    id          BIGSERIAL PRIMARY KEY,
+    user_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    subject     VARCHAR(200) NOT NULL,
+    message     TEXT NOT NULL,
+    status      ticket_status NOT NULL DEFAULT 'open',
+    assigned_to BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Ticket responses
+CREATE TABLE IF NOT EXISTS ticket_responses (
+    id         BIGSERIAL PRIMARY KEY,
+    ticket_id  BIGINT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+    user_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    message    TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Reviews
+CREATE TABLE IF NOT EXISTS reviews (
+    id         BIGSERIAL PRIMARY KEY,
+    product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    user_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    rating     INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    comment    TEXT,
+    is_verified_purchase BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (product_id, user_id)
+);
+
+-- Wishlists
+CREATE TABLE IF NOT EXISTS wishlists (
+    id         BIGSERIAL PRIMARY KEY,
+    user_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    added_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (user_id, product_id)
+);
+
+-- Audit logs
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id         BIGSERIAL PRIMARY KEY,
+    user_id    BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    action     VARCHAR(100) NOT NULL,
+    ip_address VARCHAR(45),
+    details    JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- 1. User Table
 CREATE TABLE users(
     id SERIAL PRIMARY KEY,
