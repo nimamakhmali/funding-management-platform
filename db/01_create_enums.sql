@@ -1,3 +1,60 @@
+-- ENUM types for Sci Market (PostgreSQL)
+-- Safe-guard: create type only if not exists
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+        CREATE TYPE user_role AS ENUM ('admin','support','seller','buyer');
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'language_preference') THEN
+        CREATE TYPE language_preference AS ENUM ('fa','en');
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'theme_preference') THEN
+        CREATE TYPE theme_preference AS ENUM ('light','dark');
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'file_type') THEN
+        CREATE TYPE file_type AS ENUM ('pdf','zip','code','dataset','other');
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'order_status') THEN
+        CREATE TYPE order_status AS ENUM ('pending','paid','shipped','delivered','cancelled','refunded');
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'payment_method') THEN
+        CREATE TYPE payment_method AS ENUM ('wallet','gateway');
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'transaction_type') THEN
+        CREATE TYPE transaction_type AS ENUM ('deposit','withdraw','transfer','purchase','refund');
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'transaction_status') THEN
+        CREATE TYPE transaction_status AS ENUM ('pending','completed','failed');
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ticket_status') THEN
+        CREATE TYPE ticket_status AS ENUM ('open','in_progress','closed');
+    END IF;
+END $$;
+
 CREATE TYPE user_role AS ENUM (-- User roles for RBAC system
     'buyer',
     'seller',
