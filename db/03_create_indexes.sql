@@ -1,3 +1,65 @@
+-- Indexes for performance optimization
+
+-- Users
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at);
+
+-- Categories
+CREATE INDEX IF NOT EXISTS idx_categories_parent ON categories(parent_id);
+CREATE INDEX IF NOT EXISTS idx_categories_active ON categories(is_active);
+
+-- Products
+CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
+CREATE INDEX IF NOT EXISTS idx_products_seller ON products(seller_id);
+CREATE INDEX IF NOT EXISTS idx_products_active ON products(is_active);
+CREATE INDEX IF NOT EXISTS idx_products_featured ON products(is_featured);
+CREATE INDEX IF NOT EXISTS idx_products_created_at ON products(created_at);
+CREATE INDEX IF NOT EXISTS idx_products_price ON products(price);
+CREATE INDEX IF NOT EXISTS idx_products_tags_gin ON products USING GIN (tags);
+
+-- Full text search (Persian/English combined)
+CREATE INDEX IF NOT EXISTS idx_products_fts ON products USING GIN (
+    to_tsvector('simple', coalesce(title_fa,'') || ' ' || coalesce(title_en,'') || ' ' || coalesce(description_fa,'') || ' ' || coalesce(description_en,''))
+);
+
+-- Orders
+CREATE INDEX IF NOT EXISTS idx_orders_buyer ON orders(buyer_id);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);
+
+-- Order items
+CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_order_items_product ON order_items(product_id);
+
+-- Wallets
+CREATE INDEX IF NOT EXISTS idx_wallets_user ON wallets(user_id);
+
+-- Transactions
+CREATE INDEX IF NOT EXISTS idx_transactions_from ON transactions(from_wallet);
+CREATE INDEX IF NOT EXISTS idx_transactions_to ON transactions(to_wallet);
+CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(transaction_type);
+CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status);
+CREATE INDEX IF NOT EXISTS idx_transactions_created ON transactions(created_at);
+
+-- Tickets
+CREATE INDEX IF NOT EXISTS idx_tickets_user ON tickets(user_id);
+CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
+CREATE INDEX IF NOT EXISTS idx_tickets_assigned ON tickets(assigned_to);
+
+-- Reviews
+CREATE INDEX IF NOT EXISTS idx_reviews_product ON reviews(product_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_user ON reviews(user_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_rating ON reviews(rating);
+
+-- Wishlists
+CREATE INDEX IF NOT EXISTS idx_wishlists_user ON wishlists(user_id);
+CREATE INDEX IF NOT EXISTS idx_wishlists_product ON wishlists(product_id);
+
+-- Audit logs
+CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
+
 
 --Users
 
