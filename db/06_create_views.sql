@@ -1,3 +1,51 @@
+-- Views for reporting and convenience
+
+CREATE OR REPLACE VIEW product_details AS
+SELECT p.*, 
+       c.name_fa AS category_name_fa,
+       c.name_en AS category_name_en,
+       u.full_name AS seller_name,
+       get_product_rating(p.id) AS average_rating,
+       get_product_review_count(p.id) AS reviews_count
+FROM products p
+LEFT JOIN categories c ON c.id = p.category_id
+JOIN users u ON u.id = p.seller_id;
+
+CREATE OR REPLACE VIEW featured_products AS
+SELECT * FROM products WHERE is_featured = TRUE AND is_active = TRUE
+ORDER BY created_at DESC;
+
+CREATE OR REPLACE VIEW category_stats AS
+SELECT c.id, c.name_fa, c.name_en,
+       COUNT(p.id) AS products_count,
+       SUM(p.views_count) AS total_views
+FROM categories c
+LEFT JOIN products p ON p.category_id = c.id
+GROUP BY c.id, c.name_fa, c.name_en;
+
+CREATE OR REPLACE VIEW user_profiles AS
+SELECT u.id, u.username, u.email, u.full_name, u.role, u.created_at,
+       (SELECT COUNT(*) FROM orders o WHERE o.buyer_id = u.id) AS total_orders,
+       (SELECT COUNT(*) FROM products p WHERE p.seller_id = u.id) AS total_products,
+       (SELECT balance FROM wallets w WHERE w.user_id = u.id) AS wallet_balance
+FROM users u;
+
+CREATE OR REPLACE VIEW order_details AS
+SELECT o.*, u.full_name AS buyer_name,
+       (SELECT jsonb_agg(jsonb_build_object(
+            'product_id', oi.product_id,
+            'quantity', oi.quantity,
+            'price', oi.price,
+            'total_price', oi.total_price
+        )) FROM order_items oi WHERE oi.order_id = o.id) AS items
+FROM orders o JOIN users u ON u.id = o.buyer_id;
+
+CREATE OR REPLACE VIEW transaction_history AS
+SELECT t.*, fw.user_id AS from_user_id, tw.user_id AS to_user_id
+FROM transactions t
+LEFT JOIN wallets fw ON fw.id = t.from_wallet
+LEFT JOIN wallets tw ON tw.id = t.to_wallet;
+
 -- This file creates database views for complex queries
 
 -- PRODUCT VIEWS
