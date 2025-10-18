@@ -1,3 +1,88 @@
+-- Triggers for Sci Market
+
+-- Update updated_at on row modification
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Apply to tables with updated_at
+DROP TRIGGER IF EXISTS trg_users_updated ON users;
+CREATE TRIGGER trg_users_updated BEFORE UPDATE ON users
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_categories_updated ON categories;
+CREATE TRIGGER trg_categories_updated BEFORE UPDATE ON categories
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_products_updated ON products;
+CREATE TRIGGER trg_products_updated BEFORE UPDATE ON products
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_carts_updated ON carts;
+CREATE TRIGGER trg_carts_updated BEFORE UPDATE ON carts
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_orders_updated ON orders;
+CREATE TRIGGER trg_orders_updated BEFORE UPDATE ON orders
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_tickets_updated ON tickets;
+CREATE TRIGGER trg_tickets_updated BEFORE UPDATE ON tickets
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_reviews_updated ON reviews;
+CREATE TRIGGER trg_reviews_updated BEFORE UPDATE ON reviews
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- Auto create wallet on new user
+CREATE OR REPLACE FUNCTION create_wallet_for_user()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO wallets (user_id, balance, transaction_history)
+    VALUES (NEW.id, 0, '[]'::jsonb)
+    ON CONFLICT (user_id) DO NOTHING;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_users_create_wallet ON users;
+CREATE TRIGGER trg_users_create_wallet AFTER INSERT ON users
+FOR EACH ROW EXECUTE FUNCTION create_wallet_for_user();
+
+-- Ensure order total consistency
+CREATE OR REPLACE FUNCTION enforce_order_totals()
+RETURNS TRIGGER AS $$
+DECLARE
+    calc_total NUMERIC(12,2);
+BEGIN
+    SELECT COALESCE(SUM(total_price), 0) INTO calc_total
+    FROM order_items WHERE order_id = NEW.order_id;
+    UPDATE orders SET total_price = calc_total, updated_at = NOW() WHERE id = NEW.order_id;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_order_items_after_change ON order_items;
+CREATE TRIGGER trg_order_items_after_change AFTER INSERT OR UPDATE OR DELETE ON order_items
+FOR EACH ROW EXECUTE FUNCTION enforce_order_totals();
+
+-- Increment product views/downloads helpers (used by app too)
+CREATE OR REPLACE FUNCTION increment_product_views(p_product_id BIGINT) RETURNS VOID AS $$
+BEGIN
+    UPDATE products SET views_count = views_count + 1 WHERE id = p_product_id;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION increment_product_downloads(p_product_id BIGINT) RETURNS VOID AS $$
+BEGIN
+    UPDATE products SET download_count = download_count + 1 WHERE id = p_product_id;
+END;
+$$ LANGUAGE plpgsql;
+
 -- TRIGGERS FUNCTIONS
 
 -- function to update updated_at timestamp
