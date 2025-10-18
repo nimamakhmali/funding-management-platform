@@ -1,3 +1,115 @@
+-- Stored functions for Sci Market
+
+-- Wallet operations are atomic via transactions
+CREATE OR REPLACE FUNCTION add_wallet_funds(p_wallet BIGINT, p_amount NUMERIC, p_desc TEXT)
+RETURNS VOID AS $$
+BEGIN
+    IF p_amount <= 0 THEN RAISE EXCEPTION 'Amount must be > 0'; END IF;
+    UPDATE wallets SET balance = balance + p_amount, updated_at = NOW() WHERE id = p_wallet;
+    INSERT INTO transactions (from_wallet, to_wallet, amount, transaction_type, status, description)
+    VALUES (NULL, p_wallet, p_amount, 'deposit', 'completed', p_desc);
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION deduct_wallet_funds(p_wallet BIGINT, p_amount NUMERIC, p_desc TEXT)
+RETURNS VOID AS $$
+DECLARE cur_balance NUMERIC;
+BEGIN
+    SELECT balance INTO cur_balance FROM wallets WHERE id = p_wallet FOR UPDATE;
+    IF cur_balance IS NULL THEN RAISE EXCEPTION 'Wallet not found'; END IF;
+    IF p_amount <= 0 THEN RAISE EXCEPTION 'Amount must be > 0'; END IF;
+    IF cur_balance < p_amount THEN RAISE EXCEPTION 'Insufficient balance'; END IF;
+    UPDATE wallets SET balance = balance - p_amount, updated_at = NOW() WHERE id = p_wallet;
+    INSERT INTO transactions (from_wallet, to_wallet, amount, transaction_type, status, description)
+    VALUES (p_wallet, NULL, p_amount, 'withdraw', 'completed', p_desc);
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION transfer_wallet_funds(p_from BIGINT, p_to BIGINT, p_amount NUMERIC, p_desc TEXT)
+RETURNS VOID AS $$
+BEGIN
+    PERFORM 1;
+    IF p_from = p_to THEN RAISE EXCEPTION 'Cannot transfer to same wallet'; END IF;
+    IF p_amount <= 0 THEN RAISE EXCEPTION 'Amount must be > 0'; END IF;
+    PERFORM deduct_wallet_funds(p_from, p_amount, p_desc);
+    PERFORM add_wallet_funds(p_to, p_amount, p_desc);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create order from cart
+CREATE OR REPLACE FUNCTION create_order_from_cart(p_buyer BIGINT)
+RETURNS BIGINT AS $$
+DECLARE v_order_id BIGINT;
+BEGIN
+    INSERT INTO orders (buyer_id, status) VALUES (p_buyer, 'pending') RETURNING id INTO v_order_id;
+    INSERT INTO order_items (order_id, product_id, quantity, price, total_price)
+    SELECT v_order_id, ci.product_id, ci.quantity, p.price, (p.price * ci.quantity)
+    FROM cart_items ci JOIN carts c ON c.id = ci.cart_id AND c.buyer_id = p_buyer
+    JOIN products p ON p.id = ci.product_id;
+    -- totals trigger will compute total
+    RETURN v_order_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Process order payment using wallet
+CREATE OR REPLACE FUNCTION process_order_payment(p_order BIGINT)
+RETURNS VOID AS $$
+DECLARE v_buyer BIGINT; v_total NUMERIC; v_wallet BIGINT;
+BEGIN
+    SELECT buyer_id, total_price INTO v_buyer, v_total FROM orders WHERE id = p_order FOR UPDATE;
+    IF v_buyer IS NULL THEN RAISE EXCEPTION 'Order not found'; END IF;
+    SELECT id INTO v_wallet FROM wallets WHERE user_id = v_buyer FOR UPDATE;
+    PERFORM deduct_wallet_funds(v_wallet, v_total, 'purchase');
+    UPDATE orders SET status = 'paid', updated_at = NOW() WHERE id = p_order;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Reviews helpers
+CREATE OR REPLACE FUNCTION get_product_review_count(p_product BIGINT)
+RETURNS INTEGER AS $$
+DECLARE v_cnt INTEGER; BEGIN
+    SELECT COUNT(*) INTO v_cnt FROM reviews WHERE product_id = p_product; RETURN v_cnt; END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION get_product_rating(p_product BIGINT)
+RETURNS NUMERIC AS $$
+DECLARE v_avg NUMERIC; BEGIN
+    SELECT COALESCE(AVG(rating),0) INTO v_avg FROM reviews WHERE product_id = p_product; RETURN v_avg; END;
+$$ LANGUAGE plpgsql;
+
+-- Search products (basic FTS)
+CREATE OR REPLACE FUNCTION search_products(p_query TEXT)
+RETURNS SETOF products AS $$
+BEGIN
+    RETURN QUERY
+    SELECT * FROM products
+    WHERE to_tsvector('simple', coalesce(title_fa,'') || ' ' || coalesce(title_en,'') || ' ' || coalesce(description_fa,'') || ' ' || coalesce(description_en,''))
+          @@ plainto_tsquery('simple', p_query)
+      AND is_active = TRUE
+    ORDER BY created_at DESC;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Stats
+CREATE OR REPLACE FUNCTION get_user_stats(p_user BIGINT)
+RETURNS JSONB AS $$
+DECLARE v_orders INT; v_spent NUMERIC; v_reviews INT; v_products INT; v_balance NUMERIC; v_json JSONB;
+BEGIN
+    SELECT COUNT(*), COALESCE(SUM(total_price),0) INTO v_orders, v_spent FROM orders WHERE buyer_id = p_user;
+    SELECT COUNT(*) INTO v_reviews FROM reviews WHERE user_id = p_user;
+    SELECT COUNT(*) INTO v_products FROM products WHERE seller_id = p_user;
+    SELECT balance INTO v_balance FROM wallets WHERE user_id = p_user;
+    v_json = jsonb_build_object(
+        'orders', v_orders,
+        'spent', v_spent,
+        'reviews', v_reviews,
+        'products', v_products,
+        'balance', COALESCE(v_balance,0)
+    );
+    RETURN v_json;
+END;
+$$ LANGUAGE plpgsql;
+
 --wallet functions
 
 
