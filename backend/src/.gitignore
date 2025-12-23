@@ -17,3 +17,21 @@ tests/.coverage*
 build/
 tests/report/
 tests/screenshots/
+
+# Logs
+logs/*.log
+logs/*.log.*
+
+# Environment variables
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Database
+*.sqlite3
+*.db
+
+# Static and media files (collected/generated)
+staticfiles/
+media/
