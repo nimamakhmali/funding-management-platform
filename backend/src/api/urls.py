@@ -1,23 +1,20 @@
 """
-API URL Configuration
+API URL Configuration (v1)
 """
 from django.urls import path
 from rest_framework.routers import DefaultRouter
 
-app_name = 'api'
+from .views import ProjectViewSet, UserProfileMeView
 
-# Create a router for ViewSets
+app_name = "api"
+
 router = DefaultRouter()
-
-# Register your ViewSets here
-# router.register(r'users', UserViewSet, basename='user')
+router.register(r"projects", ProjectViewSet, basename="project")
 
 urlpatterns = [
-    # Add your API endpoints here
-    # path('example/', ExampleView.as_view(), name='example'),
-]
+    path("profile/me/", UserProfileMeView.as_view(), name="profile-me"),
+] + router.urls
 
-urlpatterns += router.urls
 
 
 
