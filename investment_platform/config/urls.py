@@ -1,6 +1,3 @@
-"""
-URL Configuration اصلی پروژه
-"""
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
@@ -13,19 +10,22 @@ from drf_spectacular.views import (
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-
-    # API Schema & Docs
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
     path("api/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
 
-    # API v1
     path("api/v1/", include([
-        path("auth/", include("apps.users.presentation.urls")),
+        # users: auth + profile + admin/users
+        path("", include("apps.users.presentation.urls")),
+        # projects
         path("", include("apps.projects.presentation.urls")),
+        # investments + wallet + transactions
         path("", include("apps.investments.presentation.urls")),
+        # profits
         path("", include("apps.profits.presentation.urls")),
+        # support / tickets
         path("", include("apps.support.presentation.urls")),
+        # notifications + audit-logs
         path("", include("apps.notifications.presentation.urls")),
     ])),
 ]
