@@ -1,5 +1,5 @@
 #!/bin/sh
-'''exec' /home/nimamakhmali/Documents/funding-management-platform-BackEnd/backend_14_4_2/funding-management-platform-BackEnd/investment_platform/venv/bin/python "$0" "$@"
+'''exec' /home/nimamakhmali/Documents/funding-management-platform-BackEnd/backend_14_4_2/funding-management-platform-BackEnd/investment_platform/venv/bin/python3 "$0" "$@"
 ' '''
 # -*- coding: utf-8 -*-
 import re
