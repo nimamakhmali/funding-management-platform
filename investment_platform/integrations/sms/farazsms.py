@@ -1,40 +1,38 @@
 """
-FarazSMS Provider
+فرازپیامک — REST API.
 """
 import json
+import urllib.error
 import urllib.request
 
 from django.conf import settings
-from django.core.exceptions import ValidationError
 
-from .base import BaseSMSClient
+from .base import BaseSMSProvider, SMSProviderError, SMSSendResult
 
 
-class FarazSMSClient(BaseSMSClient):
-    def send_otp(self, *, phone_number: str, code: str) -> dict:
-        base_url = settings.SMS_FARAZSMS_BASE_URL
-        api_key = settings.SMS_FARAZSMS_API_KEY
-        sender = settings.SMS_FARAZSMS_SENDER
+class FarazSMSProvider(BaseSMSProvider):
+    provider_name = "farazsms"
 
-        if not all([base_url, api_key, sender]):
-            raise ValidationError("تنظیمات FarazSMS ناقص است.")
+    def __init__(self):
+        self.base_url = getattr(settings, "SMS_FARAZSMS_BASE_URL", "").rstrip("/")
+        self.api_key = getattr(settings, "SMS_FARAZSMS_API_KEY", "")
+        self.sender = getattr(settings, "SMS_FARAZSMS_SENDER", "")
+        if not self.base_url or not self.api_key or not self.sender:
+            raise SMSProviderError("تنظیمات فرازپیامک کامل نیست.")
 
-        payload = json.dumps({
-            "to": [phone_number],
-            "from": sender,
-            "text": f"کد تأیید شما: {code}",
-        }).encode("utf-8")
-
+    def send_otp(self, *, phone_number: str, code: str) -> SMSSendResult:
+        payload = {"to": [phone_number], "from": self.sender, "text": f"کد تایید شما: {code}"}
         req = urllib.request.Request(
-            url=f"{base_url.rstrip('/')}/messages/send",
-            data=payload,
+            url=f"{self.base_url}/messages/send",
+            data=json.dumps(payload).encode("utf-8"),
             method="POST",
-            headers={"Content-Type": "application/json", "x-api-key": api_key},
+            headers={"Content-Type": "application/json", "x-api-key": self.api_key},
         )
         try:
             with urllib.request.urlopen(req, timeout=15) as resp:
-                data = json.loads(resp.read().decode("utf-8") or "{}")
-        except Exception as exc:
-            raise ValidationError(f"خطا در ارسال SMS از FarazSMS: {exc}") from exc
-
-        return {"status": "sent", "provider": "farazsms", "response": data}
+                result = json.loads(resp.read().decode("utf-8") or "{}")
+        except urllib.error.HTTPError as exc:
+            raise SMSProviderError(f"فرازپیامک خطا داد: {exc}") from exc
+        except urllib.error.URLError as exc:
+            raise SMSProviderError(f"ارتباط با فرازپیامک برقرار نشد: {exc}") from exc
+        return SMSSendResult(provider=self.provider_name, status="sent", raw=result)

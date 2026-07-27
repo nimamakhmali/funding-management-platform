@@ -27,3 +27,12 @@ class OTPVerifyDTO:
     purpose: str
     email: Optional[str] = None
     phone_number: Optional[str] = None
+
+
+@dataclass
+class UpdateProfileDTO:
+    company_name: str | None = None
+    address: str | None = None
+    bio: str | None = None
+    avatar_url: str | None = None
+    bank_account_sheba: str | None = None

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from apps.notifications.infrastructure.models import AuditLog, Notification
+from .infrastructure.models import AuditLog, Notification
 
 
 @admin.register(Notification)
@@ -8,25 +8,22 @@ class NotificationAdmin(admin.ModelAdmin):
     list_filter = ("type", "is_read")
     search_fields = ("user__username", "title")
     autocomplete_fields = ("user",)
-    readonly_fields = ("created_at", "read_at")
 
-    def has_delete_permission(self, request, obj=None):
-        return request.user.is_superuser
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("user")
 
 
 @admin.register(AuditLog)
 class AuditLogAdmin(admin.ModelAdmin):
     list_display = ("actor", "action", "entity", "entity_id", "created_at")
     list_filter = ("action", "entity")
-    search_fields = ("actor__username", "action", "entity_id", "description")
+    search_fields = ("actor__username", "action", "entity_id")
     autocomplete_fields = ("actor",)
-    readonly_fields = ("created_at",)
+    readonly_fields = [f.name for f in AuditLog._meta.fields]
 
-    def has_add_permission(self, request):
-        return False
+    def has_add_permission(self, request): return False
+    def has_change_permission(self, request, obj=None): return False
+    def has_delete_permission(self, request, obj=None): return False
 
-    def has_delete_permission(self, request, obj=None):
-        return False
-
-    def has_change_permission(self, request, obj=None):
-        return False
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("actor")

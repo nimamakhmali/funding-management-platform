@@ -1,279 +1,150 @@
-"""
-Use Cases توزیع سود
-"""
 from __future__ import annotations
 
-from decimal import Decimal, ROUND_DOWN
+from decimal import Decimal
 
-from django.db import transaction as db_transaction
-from django.utils import timezone
+from django.db import transaction
+from django.db.models import Sum
 
-from apps.investments.infrastructure.models import (
-    Investment,
-    InvestmentStatus,
-    Transaction,
-    TransactionType,
-    Wallet,
-)
-from apps.notifications.application.use_cases import (
-    CreateAuditLogUseCase,
-    CreateNotificationUseCase,
-)
+from apps.investments.infrastructure.models import Investment, InvestmentStatus, Transaction as WalletTransaction, TransactionType, Wallet
+from apps.notifications.application.use_cases import create_notification, log_action
 from apps.notifications.infrastructure.models import NotificationType
-from apps.profits.infrastructure.models import (
-    PayoutItem,
-    PayoutItemStatus,
-    ProfitPeriod,
-    ProfitPeriodStatus,
-)
-from integrations.payment.sejam import SejamClient
-from shared.exceptions import BusinessRuleViolation, PermissionDenied, ResourceNotFound
+from apps.profits.infrastructure.models import PayoutItem, PayoutItemStatus, ProfitPeriod, ProfitPeriodStatus
+from integrations.payment.sejam import SejamSettlementClient
+from integrations.payment.base import PaymentGatewayError
+from shared.exceptions import BusinessRuleViolation, ValidationException
 
-
-# apps/profits/application/use_cases.py
-# فقط این بخش را جایگزین کنید:
 
 class CalculateProfitDistributionUseCase:
-    def execute(self, *, profit_period_id, actor) -> ProfitPeriod:
-        if not actor.is_admin:
-            raise PermissionDenied()
+    """فرمول: سهم کاربر = (amount_i / Σamount) * total_profit_amount — طبق سند نیاز، غیرقابل دستکاری دستی."""
 
-        with db_transaction.atomic():
-            try:
-                period = (
-                    ProfitPeriod.objects
-                    .select_for_update()
-                    .select_related("project")
-                    .get(pk=profit_period_id)
-                )
-            except ProfitPeriod.DoesNotExist:
-                raise ResourceNotFound("دوره سود")
+    def execute(self, *, profit_period_id) -> ProfitPeriod:
+        with transaction.atomic():
+            period = ProfitPeriod.objects.select_for_update().select_related("project").get(pk=profit_period_id)
 
             if period.status != ProfitPeriodStatus.CALCULATING:
-                raise BusinessRuleViolation(
-                    "فقط دوره‌های در وضعیت «در حال محاسبه» قابل پردازش‌اند."
-                )
-
+                raise BusinessRuleViolation("این دوره در وضعیت محاسبه نیست.")
+            if period.total_profit_amount <= 0:
+                raise ValidationException("مبلغ سود این دوره باید بزرگ‌تر از صفر باشد.")
             if period.payout_items.exists():
-                raise BusinessRuleViolation("این دوره قبلاً محاسبه شده است.")
+                raise BusinessRuleViolation("برای این دوره قبلاً سود توزیع شده است.")
 
-            investments = list(
-                Investment.objects.filter(
-                    project=period.project,
-                    status=InvestmentStatus.CONFIRMED,
-                ).select_related("investor")
-            )
-
-            if not investments:
-                raise BusinessRuleViolation(
-                    "هیچ سرمایه‌گذاری تأیید‌شده‌ای برای این پروژه وجود ندارد."
-                )
-
-            total_invested = sum(inv.amount for inv in investments)
+            investments = Investment.objects.filter(project=period.project, status=InvestmentStatus.SUCCESSFUL)
+            total_invested = investments.aggregate(total=Sum("amount"))["total"] or Decimal("0")
             if total_invested <= 0:
-                raise BusinessRuleViolation("مجموع سرمایه‌گذاری‌ها صفر است.")
+                raise BusinessRuleViolation("هیچ سرمایه‌گذاری موفقی برای این پروژه ثبت نشده است.")
 
-            items = self._build_payout_items(
-                investments=investments,
-                total_invested=total_invested,
-                total_profit=period.total_profit_amount,
-                period=period,
-            )
+            created = []
+            for inv in investments:
+                ratio = inv.amount / total_invested
+                payout_amount = (ratio * period.total_profit_amount).quantize(Decimal("0.01"))
+                if payout_amount <= 0:
+                    continue
+                created.append(PayoutItem.objects.create(
+                    period=period, user=inv.investor, investment=inv, amount=payout_amount,
+                    status=PayoutItemStatus.PENDING,
+                ))
 
-            if not items:
-                raise BusinessRuleViolation("هیچ آیتم سودی ایجاد نشد.")
-
-            PayoutItem.objects.bulk_create(items)
+            if not created:
+                raise BusinessRuleViolation("نتیجه‌ای برای توزیع سود به‌دست نیامد.")
 
             period.status = ProfitPeriodStatus.APPROVED
             period.save(update_fields=["status"])
+            log_action.execute(actor=None, action="PROFIT_DISTRIBUTION_CALCULATED", entity="ProfitPeriod",
+                                entity_id=str(period.id), metadata={"items_count": len(created)})
+            return period
 
-            CreateAuditLogUseCase().execute(
-                actor=actor,
-                action="PROFIT_CALCULATED",
-                entity="ProfitPeriod",
-                entity_id=str(period.id),
-                description=f"سود دوره «{period.title}» محاسبه شد.",
-                metadata={
-                    "total_profit": str(period.total_profit_amount),
-                    "items_count": len(items),
-                },
-            )
-
-        return period
-
-    def _build_payout_items(
-        self,
-        *,
-        investments: list,
-        total_invested: Decimal,
-        total_profit: Decimal,
-        period: ProfitPeriod,
-    ) -> list[PayoutItem]:
-        items = []
-        distributed = Decimal("0")
-        precision = Decimal("0.01")
-
-        for i, inv in enumerate(investments):
-            is_last = (i == len(investments) - 1)
-
-            if is_last:
-                # جلوگیری از خطای گرد کردن
-                amount = (total_profit - distributed).quantize(precision)
-            else:
-                ratio = inv.amount / total_invested
-                amount = (ratio * total_profit).quantize(
-                    precision, rounding=ROUND_DOWN
-                )
-
-            if amount <= 0:
-                continue
-
-            distributed += amount
-            items.append(
-                PayoutItem(
-                    period=period,
-                    investor=inv.investor,
-                    investment=inv,
-                    amount=amount,
-                    status=PayoutItemStatus.PENDING,
-                )
-            )
-
-        return items
 
 class ApprovePayoutUseCase:
-    """UC: واریز سود به کیف پول سرمایه‌گذار"""
+    """پرداخت سود به کیف پول داخلی (نمایشی) — تسویه نهایی واقعی صرفاً از طریق سجام (نگاه کنید به SettlePayoutWithSejamUseCase)."""
 
-    def execute(self, *, payout_item_id, actor) -> PayoutItem:
-        if not actor.is_admin:
-            raise PermissionDenied()
-
-        with db_transaction.atomic():
-            try:
-                item = (
-                    PayoutItem.objects
-                    .select_for_update()
-                    .select_related("investor", "period")
-                    .get(pk=payout_item_id)
-                )
-            except PayoutItem.DoesNotExist:
-                raise ResourceNotFound("آیتم سود")
-
+    def execute(self, *, payout_item_id) -> PayoutItem:
+        with transaction.atomic():
+            item = PayoutItem.objects.select_for_update().select_related("user").get(pk=payout_item_id)
             if item.status != PayoutItemStatus.PENDING:
-                raise BusinessRuleViolation("این آیتم قبلاً پردازش شده است.")
+                raise BusinessRuleViolation("این آیتم سود در وضعیت قابل پرداخت نیست.")
 
-            wallet = Wallet.objects.select_for_update().get(user=item.investor)
+            wallet = Wallet.objects.select_for_update().get(user=item.user)
             wallet.balance += item.amount
-            wallet.updated_at = timezone.now()
-            wallet.save(update_fields=["balance", "updated_at"])
+            wallet.version += 1
+            wallet.save(update_fields=["balance", "version", "updated_at"])
 
-            tx = Transaction(
-                user=item.investor,
-                amount=item.amount,
-                type=TransactionType.PROFIT,
-                description=f"سود دوره «{item.period.title}»",
-                is_successful=True,
-            )
-            tx.save()
-
+            tx = WalletTransaction.objects.create(user=item.user, amount=item.amount, type=TransactionType.PROFIT, is_successful=True)
             item.transaction = tx
             item.status = PayoutItemStatus.PAID_TO_WALLET
-            item.paid_at = timezone.now()
-            item.save(update_fields=["transaction", "status", "paid_at"])
+            item.save(update_fields=["transaction", "status"])
 
-            CreateNotificationUseCase().execute(
-                user=item.investor,
-                title="سود دوره واریز شد 💰",
-                message=(
-                    f"مبلغ {item.amount:,} تومان بابت سود دوره "
-                    f"«{item.period.title}» به کیف پول شما واریز شد."
-                ),
-                notif_type=NotificationType.SUCCESS,
-            )
-
-            CreateAuditLogUseCase().execute(
-                actor=actor,
-                action="PAYOUT_APPROVED",
-                entity="PayoutItem",
-                entity_id=str(item.id),
-                description=f"سود {item.amount} به کیف پول واریز شد.",
-            )
-
-        return item
+            create_notification.execute(user=item.user, title="واریز سود",
+                                         message=f"مبلغ {item.amount} تومان سود به کیف پول شما واریز شد.",
+                                         notif_type=NotificationType.SUCCESS)
+            return item
 
 
 class SettlePayoutWithSejamUseCase:
-    """UC: تسویه سود از مسیر قانونی سجام"""
+    """تسویه قانونی نهایی سود از طریق سجام (طبق پروپوزال: مسیر قانونی پرداخت اصل/سود)."""
 
-    def execute(self, *, payout_item_id, actor) -> PayoutItem:
-        if not actor.is_admin:
-            raise PermissionDenied()
-
-        with db_transaction.atomic():
-            try:
-                item = (
-                    PayoutItem.objects
-                    .select_for_update()
-                    .select_related("investor", "period")
-                    .get(pk=payout_item_id)
-                )
-            except PayoutItem.DoesNotExist:
-                raise ResourceNotFound("آیتم سود")
-
+    def execute(self, *, payout_item_id, actor=None) -> PayoutItem:
+        with transaction.atomic():
+            item = PayoutItem.objects.select_for_update().select_related("user", "period", "transaction").get(pk=payout_item_id)
             if item.status == PayoutItemStatus.SETTLED_SEJAM:
                 raise BusinessRuleViolation("این آیتم قبلاً از طریق سجام تسویه شده است.")
 
-            if not item.investor.national_code:
-                raise BusinessRuleViolation(
-                    "کد ملی سرمایه‌گذار برای تسویه از مسیر سجام الزامی است."
+            client = SejamSettlementClient()
+            try:
+                result = client.settle_profit(
+                    national_code=item.user.national_code or "", amount=str(item.amount),
+                    payout_item_id=str(item.id), period_title=item.period.title,
                 )
+            except PaymentGatewayError as exc:
+                raise BusinessRuleViolation(f"ارتباط با سجام ناموفق بود: {exc}")
 
-            # فراخوانی سرویس سجام
-            result = SejamClient().settle_profit(
-                national_code=item.investor.national_code,
-                amount=str(item.amount),
-                payout_item_id=str(item.id),
-                description=f"سود دوره «{item.period.title}»",
-            )
-
-            # ثبت تراکنش اگر موجود نبود
-            if not item.transaction:
-                tx = Transaction(
-                    user=item.investor,
-                    amount=item.amount,
-                    type=TransactionType.PROFIT,
-                    reference_id=result["settlement_reference"],
-                    description=f"تسویه سجام — {item.period.title}",
-                    is_successful=True,
-                )
-                tx.save()
-                item.transaction = tx
+            tx = item.transaction
+            if tx is None:
+                tx = WalletTransaction.objects.create(user=item.user, amount=item.amount, type=TransactionType.PROFIT,
+                                                       is_successful=True, reference_id=result.settlement_reference)
             else:
-                item.transaction.reference_id = result["settlement_reference"]
-                item.transaction.save(update_fields=["reference_id"])
+                tx.reference_id = result.settlement_reference
+                tx.is_successful = True
+                tx.save(update_fields=["reference_id", "is_successful"])
 
+            item.transaction = tx
+            item.settlement_reference = result.settlement_reference
             item.status = PayoutItemStatus.SETTLED_SEJAM
-            item.paid_at = timezone.now()
-            item.save(update_fields=["transaction", "status", "paid_at"])
+            item.save(update_fields=["transaction", "settlement_reference", "status"])
 
-            CreateNotificationUseCase().execute(
-                user=item.investor,
-                title="تسویه سجام انجام شد ✅",
-                message=(
-                    f"سود دوره «{item.period.title}» از مسیر قانونی تسویه شد. "
-                    f"کد پیگیری: {result['settlement_reference']}"
-                ),
-                notif_type=NotificationType.SUCCESS,
-            )
+            log_action.execute(actor=actor, action="SEJAM_SETTLEMENT", entity="PayoutItem",
+                                entity_id=str(item.id), metadata={"reference_id": result.settlement_reference})
+            create_notification.execute(user=item.user, title="تسویه سود انجام شد",
+                                         message=f"سود دوره «{item.period.title}» از مسیر قانونی سجام تسویه شد.",
+                                         notif_type=NotificationType.SUCCESS)
+            return item
 
-            CreateAuditLogUseCase().execute(
-                actor=actor,
-                action="SEJAM_SETTLEMENT",
-                entity="PayoutItem",
-                entity_id=str(item.id),
-                description="تسویه سجام انجام شد.",
-                metadata={"reference": result["settlement_reference"]},
-            )
 
-        return item
+class HandleSejamCallbackUseCase:
+    """پردازش Webhook ناهمزمان سجام برای مواردی که تسویه بلافاصله نهایی نمی‌شود."""
+
+    def execute(self, *, payout_item_id, settlement_status: str, settlement_reference: str) -> PayoutItem:
+        with transaction.atomic():
+            item = PayoutItem.objects.select_for_update().select_related("user", "period").get(pk=payout_item_id)
+
+            if settlement_status not in {"SUCCESS", "success", "OK"}:
+                log_action.execute(actor=None, action="SEJAM_CALLBACK_FAILED", entity="PayoutItem",
+                                    entity_id=str(item.id), description=str(settlement_status))
+                return item
+
+            if item.status != PayoutItemStatus.SETTLED_SEJAM:
+                tx = item.transaction or WalletTransaction.objects.create(
+                    user=item.user, amount=item.amount, type=TransactionType.PROFIT,
+                    is_successful=True, reference_id=settlement_reference,
+                )
+                item.transaction = tx
+                item.settlement_reference = settlement_reference
+                item.status = PayoutItemStatus.SETTLED_SEJAM
+                item.save(update_fields=["transaction", "settlement_reference", "status"])
+                log_action.execute(actor=None, action="SEJAM_CALLBACK_CONFIRMED", entity="PayoutItem", entity_id=str(item.id))
+            return item
+
+
+calculate_profit_distribution = CalculateProfitDistributionUseCase()
+approve_payout = ApprovePayoutUseCase()
+settle_payout_with_sejam = SettlePayoutWithSejamUseCase()
+handle_sejam_callback = HandleSejamCallbackUseCase()

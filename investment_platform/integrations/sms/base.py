@@ -4,6 +4,29 @@ Base SMS Client و Factory
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from django.conf import settings
+from shared.exceptions import ExternalServiceError
+
+
+class SMSProviderError(ExternalServiceError):
+    default_message = "ارسال پیامک با خطا مواجه شد."
+
+
+class SMSSendResult:
+    def __init__(self, *, provider: str, status: str, raw: dict | None = None):
+        self.provider = provider
+        self.status = status
+        self.raw = raw or {}
+
+    def as_dict(self) -> dict:
+        return {"provider": self.provider, "status": self.status, "raw": self.raw}
+
+
+class BaseSMSProvider(ABC):
+    provider_name: str = "base"
+
+    @abstractmethod
+    def send_otp(self, *, phone_number: str, code: str) -> SMSSendResult:
+        ...
 
 
 class BaseSMSClient(ABC):

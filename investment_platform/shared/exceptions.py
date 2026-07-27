@@ -12,12 +12,38 @@ from rest_framework.views import exception_handler
 # ---------------------------------------------------------------------------
 
 class DomainException(Exception):
-    """Base exception برای خطاهای دامین"""
-    def __init__(self, message: str, code: str = "domain_error"):
-        self.message = message
-        self.code = code
-        super().__init__(message)
+    default_message = "خطای دامنه رخ داده است."
 
+    def __init__(self, message: str | None = None, *, code: str | None = None):
+        self.message = message or self.default_message
+        self.code = code or self.__class__.__name__
+        super().__init__(self.message)
+
+
+class ValidationException(DomainException):
+    default_message = "داده‌های ورودی نامعتبر است."
+
+
+class NotFoundException(DomainException):
+    default_message = "منبع مورد نظر یافت نشد."
+
+
+class PermissionDeniedException(DomainException):
+    default_message = "شما اجازه‌ی انجام این عملیات را ندارید."
+
+
+class InsufficientBalanceException(DomainException):
+    default_message = "موجودی کافی نیست."
+
+
+
+class ExternalServiceError(DomainException):
+    """خطای ارتباط با سرویس بیرونی (پیامک، درگاه پرداخت، سجام)."""
+    default_message = "ارتباط با سرویس بیرونی با خطا مواجه شد."
+
+
+class RateLimitExceeded(DomainException):
+    default_message = "تعداد درخواست‌های شما بیش از حد مجاز است."
 
 class BusinessRuleViolation(DomainException):
     """نقض قانون بیزینس"""

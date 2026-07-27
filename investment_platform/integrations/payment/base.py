@@ -1,13 +1,31 @@
-"""
-Base Payment Client
-"""
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+
+from shared.exceptions import ExternalServiceError
 
 
-class BasePaymentClient(ABC):
+class PaymentGatewayError(ExternalServiceError):
+    default_message = "ارتباط با درگاه پرداخت با خطا مواجه شد."
+
+
+@dataclass
+class PaymentRequestResult:
+    authority: str
+    payment_url: str
+
+
+@dataclass
+class PaymentVerifyResult:
+    ref_id: str
+    card_pan: str | None = None
+    already_verified: bool = False
+
+
+class BasePaymentGateway(ABC):
+    gateway_name: str = "base"
+
     @abstractmethod
-    def settle_profit(
-        self, *, national_code: str, amount: str,
-        payout_item_id: str, description: str,
-    ) -> dict:
-        raise NotImplementedError
+    def request_payment(self, *, amount: int, description: str, callback_url: str, mobile: str = "") -> PaymentRequestResult: ...
+
+    @abstractmethod
+    def verify_payment(self, *, amount: int, authority: str) -> PaymentVerifyResult: ...

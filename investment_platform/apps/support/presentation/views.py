@@ -112,3 +112,6 @@ class TicketViewSet(viewsets.ModelViewSet):
         ticket = self.get_object()
         CloseTicketUseCase().execute(ticket=ticket, actor=request.user)
         return Response({"status": "closed"})
+    
+    
+    

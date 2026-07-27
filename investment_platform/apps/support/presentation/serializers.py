@@ -47,3 +47,6 @@ class TicketCreateSerializer(serializers.Serializer):
 class TicketReplySerializer(serializers.Serializer):
     message = serializers.CharField(min_length=1)
     attachment_url = serializers.URLField(required=False, allow_blank=True)
+    
+
+

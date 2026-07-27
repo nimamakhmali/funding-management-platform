@@ -1,27 +1,21 @@
-"""
-URL های کاربران
-"""
-from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from rest_framework_simplejwt.views import TokenRefreshView
+from django.urls import path
+
 from .views import (
-    AdminUserViewSet,
-    LoginView,
-    OTPRequestView,
-    OTPVerifyView,
-    RegisterView,
-    UserProfileMeView,
+    AdminUserViewSet, LoginView, OTPRequestView, OTPVerifyView,
+    ProfileMeView, RefreshTokenView, RegisterView,
 )
+
+app_name = "users"
 
 router = DefaultRouter()
 router.register(r"admin/users", AdminUserViewSet, basename="admin-users")
 
 urlpatterns = [
-    path("register/", RegisterView.as_view(), name="auth-register"),
-    path("login/", LoginView.as_view(), name="auth-login"),
-    path("refresh/", TokenRefreshView.as_view(), name="auth-refresh"),
-    path("otp/request/", OTPRequestView.as_view(), name="otp-request"),
-    path("otp/verify/", OTPVerifyView.as_view(), name="otp-verify"),
-    path("profile/me/", UserProfileMeView.as_view(), name="profile-me"),
-    path("", include(router.urls)),
-]
+    path("auth/register/", RegisterView.as_view(), name="register"),
+    path("auth/login/", LoginView.as_view(), name="login"),
+    path("auth/refresh/", RefreshTokenView.as_view(), name="refresh"),
+    path("auth/otp/request/", OTPRequestView.as_view(), name="otp-request"),
+    path("auth/otp/verify/", OTPVerifyView.as_view(), name="otp-verify"),
+    path("profile/me/", ProfileMeView.as_view(), name="profile-me"),
+] + router.urls

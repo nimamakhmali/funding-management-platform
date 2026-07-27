@@ -1,71 +1,46 @@
-"""
-State Machine وضعیت پروژه
-"""
+from django.db import models
 from shared.exceptions import InvalidStateTransition
 
 
-class ProjectStatus:
-    DRAFT = "DRAFT"
-    PENDING_REVIEW = "PENDING_REVIEW"
-    NEEDS_REVISION = "NEEDS_REVISION"
-    APPROVED = "APPROVED"
-    FUNDING = "FUNDING"
-    FUNDING_COMPLETED = "FUNDING_COMPLETED"
-    FUNDING_FAILED = "FUNDING_FAILED"
-    ACTIVE = "ACTIVE"
-    COMPLETED = "COMPLETED"
-    REJECTED = "REJECTED"
-    CANCELLED = "CANCELLED"
-    ARCHIVED = "ARCHIVED"
-
-    CHOICES = [
-        (DRAFT, "پیش‌نویس"),
-        (PENDING_REVIEW, "در انتظار بررسی"),
-        (NEEDS_REVISION, "نیاز به اصلاح"),
-        (APPROVED, "تأیید شده"),
-        (FUNDING, "در حال جذب سرمایه"),
-        (FUNDING_COMPLETED, "تأمین مالی کامل"),
-        (FUNDING_FAILED, "جذب ناموفق"),
-        (ACTIVE, "در حال اجرا"),
-        (COMPLETED, "تکمیل شده"),
-        (REJECTED, "رد شده"),
-        (CANCELLED, "لغو شده"),
-        (ARCHIVED, "آرشیو"),
-    ]
-
-    INVESTABLE = {APPROVED, FUNDING}
-    TERMINAL = {COMPLETED, REJECTED, CANCELLED}
+class ProjectStatus(models.TextChoices):
+    DRAFT = "DRAFT", "پیش‌نویس"
+    PENDING_REVIEW = "PENDING_REVIEW", "در انتظار بررسی"
+    NEEDS_REVISION = "NEEDS_REVISION", "نیاز به اصلاح"
+    APPROVED = "APPROVED", "تایید شده"
+    REJECTED = "REJECTED", "رد شده"
+    FUNDING = "FUNDING", "در حال جذب سرمایه"
+    FUNDING_COMPLETED = "FUNDING_COMPLETED", "تامین مالی تکمیل شد"
+    FUNDING_FAILED = "FUNDING_FAILED", "عدم تحقق جذب سرمایه"
+    ACTIVE = "ACTIVE", "در حال اجرا"
+    PROFIT_CALCULATION = "PROFIT_CALCULATION", "محاسبه سود"
+    PROFIT_DISTRIBUTED = "PROFIT_DISTRIBUTED", "توزیع سود"
+    COMPLETED = "COMPLETED", "تکمیل شده"
+    ARCHIVED = "ARCHIVED", "آرشیو شده"
+    CANCELED = "CANCELED", "لغو شده"
 
 
-TRANSITION_MATRIX: dict[str, set[str]] = {
-    ProjectStatus.DRAFT: {ProjectStatus.PENDING_REVIEW, ProjectStatus.CANCELLED},
-    ProjectStatus.PENDING_REVIEW: {
-        ProjectStatus.APPROVED,
-        ProjectStatus.REJECTED,
-        ProjectStatus.NEEDS_REVISION,
-    },
-    ProjectStatus.NEEDS_REVISION: {ProjectStatus.PENDING_REVIEW, ProjectStatus.CANCELLED},
-    ProjectStatus.APPROVED: {
-        ProjectStatus.FUNDING,
-        ProjectStatus.ARCHIVED,
-        ProjectStatus.CANCELLED,
-    },
-    ProjectStatus.FUNDING: {
-        ProjectStatus.FUNDING_COMPLETED,
-        ProjectStatus.FUNDING_FAILED,
-        ProjectStatus.CANCELLED,
-    },
-    ProjectStatus.FUNDING_COMPLETED: {ProjectStatus.ACTIVE},
+# طبق فصل ۴ گزارش فاز اول
+ALLOWED_TRANSITIONS: dict[str, set[str]] = {
+    ProjectStatus.DRAFT: {ProjectStatus.PENDING_REVIEW, ProjectStatus.CANCELED},
+    ProjectStatus.PENDING_REVIEW: {ProjectStatus.APPROVED, ProjectStatus.NEEDS_REVISION, ProjectStatus.REJECTED},
+    ProjectStatus.NEEDS_REVISION: {ProjectStatus.PENDING_REVIEW, ProjectStatus.CANCELED},
+    ProjectStatus.APPROVED: {ProjectStatus.FUNDING, ProjectStatus.ARCHIVED, ProjectStatus.CANCELED},
+    ProjectStatus.FUNDING: {ProjectStatus.FUNDING_COMPLETED, ProjectStatus.FUNDING_FAILED, ProjectStatus.CANCELED},
+    ProjectStatus.FUNDING_COMPLETED: {ProjectStatus.ACTIVE, ProjectStatus.CANCELED},
     ProjectStatus.FUNDING_FAILED: {ProjectStatus.ARCHIVED},
-    ProjectStatus.ACTIVE: {ProjectStatus.COMPLETED, ProjectStatus.ARCHIVED},
-    ProjectStatus.COMPLETED: set(),
-    ProjectStatus.REJECTED: set(),
-    ProjectStatus.CANCELLED: set(),
-    ProjectStatus.ARCHIVED: set(),
+    ProjectStatus.ACTIVE: {ProjectStatus.PROFIT_CALCULATION, ProjectStatus.COMPLETED, ProjectStatus.CANCELED},
+    ProjectStatus.PROFIT_CALCULATION: {ProjectStatus.PROFIT_DISTRIBUTED},
+    ProjectStatus.PROFIT_DISTRIBUTED: {ProjectStatus.COMPLETED},
+    ProjectStatus.COMPLETED: set(), ProjectStatus.REJECTED: set(),
+    ProjectStatus.ARCHIVED: set(), ProjectStatus.CANCELED: set(),
 }
 
+FORCE_ALLOWED_FROM_ANY = {ProjectStatus.CANCELED, ProjectStatus.ARCHIVED}
 
-def validate_transition(from_status: str, to_status: str) -> None:
-    allowed = TRANSITION_MATRIX.get(from_status, set())
+
+def validate_transition(from_status: str, to_status: str, *, force: bool = False) -> None:
+    if force and to_status in FORCE_ALLOWED_FROM_ANY:
+        return
+    allowed = ALLOWED_TRANSITIONS.get(from_status, set())
     if to_status not in allowed:
-        raise InvalidStateTransition(from_status, to_status)
+        raise InvalidStateTransition(f"تغییر وضعیت از {from_status} به {to_status} مجاز نیست.")

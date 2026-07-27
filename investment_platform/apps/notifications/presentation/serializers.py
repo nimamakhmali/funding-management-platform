@@ -1,6 +1,5 @@
 from rest_framework import serializers
 from apps.notifications.infrastructure.models import AuditLog, Notification
-from apps.users.presentation.serializers import UserMinimalSerializer
 
 
 class NotificationSerializer(serializers.ModelSerializer):
@@ -11,12 +10,10 @@ class NotificationSerializer(serializers.ModelSerializer):
 
 
 class AuditLogSerializer(serializers.ModelSerializer):
-    actor = UserMinimalSerializer(read_only=True)
+    actor_username = serializers.CharField(source="actor.username", read_only=True, default=None)
 
     class Meta:
         model = AuditLog
-        fields = [
-            "id", "actor", "action", "entity",
-            "entity_id", "description", "metadata", "created_at",
-        ]
+        fields = ["id", "actor", "actor_username", "action", "entity", "entity_id",
+                  "description", "metadata", "ip_address", "created_at"]
         read_only_fields = fields

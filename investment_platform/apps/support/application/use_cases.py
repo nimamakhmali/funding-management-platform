@@ -107,3 +107,28 @@ class CloseTicketUseCase:
             description=f"تیکت «{ticket.subject}» بسته شد.",
         )
         return ticket
+    
+    
+    
+from apps.notifications.application.use_cases import log_action
+from apps.support.infrastructure.models import Ticket, TicketMessage, TicketStatus
+from shared.exceptions import BusinessRuleViolation, ValidationException
+
+
+class CreateTicketMessageUseCase:
+    def execute(self, *, ticket: Ticket, sender, message: str, attachment_url: str | None = None) -> TicketMessage:
+        if not message.strip():
+            raise ValidationException("متن پیام تیکت نمی‌تواند خالی باشد.")
+        if ticket.status == TicketStatus.CLOSED:
+            raise BusinessRuleViolation("این تیکت بسته شده و امکان ارسال پیام جدید وجود ندارد.")
+
+        item = TicketMessage.objects.create(ticket=ticket, sender=sender, message=message.strip(), attachment_url=attachment_url or None)
+        is_staff_reply = sender.is_staff or getattr(sender, "role", None) == "ADMIN"
+        ticket.status = TicketStatus.ADMIN_REPLIED if is_staff_reply else TicketStatus.USER_REPLIED
+        ticket.save(update_fields=["status", "updated_at"])
+        log_action.execute(actor=sender, action="TICKET_REPLIED", entity="Ticket", entity_id=str(ticket.id))
+        return item
+
+
+create_ticket_message = CreateTicketMessageUseCase()
+close_ticket = CloseTicketUseCase()    

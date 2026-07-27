@@ -8,6 +8,8 @@ from django.db import models
 from django.utils import timezone
 
 from shared.exceptions import InvalidOTP, OTPMaxAttemptsExceeded
+from shared.fields import EncryptedCharField
+from shared.validators import validate_iranian_national_code
 
 
 class UserRole(models.TextChoices):
@@ -18,23 +20,25 @@ class UserRole(models.TextChoices):
 
 
 class CustomUserManager(BaseUserManager):
-    def create_user(self, email: str, username: str, password: str = None, **extra):
+    def create_user(self, username, email, password=None, **extra_fields):
         if not email:
             raise ValueError("ایمیل الزامی است.")
         if not username:
             raise ValueError("نام کاربری الزامی است.")
         email = self.normalize_email(email)
-        user = self.model(email=email, username=username, **extra)
+        user = self.model(username=username, email=email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, email: str, username: str, password: str = None, **extra):
-        extra.setdefault("role", UserRole.ADMIN)
-        extra.setdefault("is_active", True)
-        extra.setdefault("is_staff", True)
-        extra.setdefault("is_superuser", True)
-        return self.create_user(email, username, password, **extra)
+    def create_superuser(self, username, email, password=None, **extra_fields):
+        extra_fields.setdefault("role", UserRole.ADMIN)
+        extra_fields.setdefault("is_active", True)
+        extra_fields.setdefault("is_staff", True)
+        extra_fields.setdefault("is_superuser", True)
+        if extra_fields.get("role") != UserRole.ADMIN:
+            raise ValueError("Superuser باید نقش ADMIN داشته باشد.")
+        return self.create_user(username, email, password, **extra_fields)
 
 
 class User(AbstractBaseUser, PermissionsMixin):
@@ -43,18 +47,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True, db_index=True)
     phone_number = models.CharField(
         max_length=20, unique=True, null=True, blank=True,
-        validators=[RegexValidator(
-            regex=r"^(\+98|0)?9\d{9}$",
-            message="شماره موبایل معتبر نیست."
-        )],
-        db_index=True,
+        validators=[RegexValidator(regex=r"^\+98\d{10}$", message="شماره موبایل باید با +98 و سپس ۱۰ رقم باشد.")],
     )
+    
     national_code = models.CharField(
         max_length=10, unique=True, null=True, blank=True,
-        validators=[RegexValidator(
-            regex=r"^\d{10}$",
-            message="کد ملی باید ۱۰ رقم باشد."
-        )],
+        validators=[validate_iranian_national_code],  # چک‌سام واقعی، نه فقط تعداد رقم
     )
     role = models.CharField(
         max_length=20, choices=UserRole.choices,
@@ -65,6 +63,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_verified = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    phone_verified = models.BooleanField(default=False)
 
     objects = CustomUserManager()
 
@@ -74,9 +73,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     class Meta:
         db_table = "users"
         indexes = [
-            models.Index(fields=["email"]),
+            models.Index(fields=["email"]), 
             models.Index(fields=["username"]),
-            models.Index(fields=["role"]),
+            models.Index(fields=["role"]), 
+            models.Index(fields=["phone_number"]),
         ]
 
     def __str__(self):
@@ -111,18 +111,19 @@ class UserProfile(models.Model):
 
 class OTPPurpose(models.TextChoices):
     LOGIN = "LOGIN", "ورود"
-    VERIFY_PHONE = "VERIFY_PHONE", "تأیید موبایل"
+    VERIFY_PHONE = "VERIFY_PHONE", "تایید موبایل"
     RESET_PASSWORD = "RESET_PASSWORD", "بازیابی رمز عبور"
+    WITHDRAWAL = "WITHDRAWAL", "تایید برداشت وجه"
 
 
 class OTPCode(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="otp_codes")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="otp_codes", db_index=True)
+    purpose = models.CharField(max_length=24, choices=OTPPurpose.choices, default=OTPPurpose.LOGIN, db_index=True)
     code = models.CharField(max_length=6)
-    purpose = models.CharField(max_length=24, choices=OTPPurpose.choices)
-    is_used = models.BooleanField(default=False)
-    attempt_count = models.PositiveSmallIntegerField(default=0)
-    expires_at = models.DateTimeField()
+    attempts = models.PositiveSmallIntegerField(default=0)
+    is_used = models.BooleanField(default=False, db_index=True)
+    expires_at = models.DateTimeField(db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     MAX_ATTEMPTS = 3
@@ -158,3 +159,7 @@ class OTPCode(models.Model):
         self.is_used = True
         self.save(update_fields=["is_used"])
         return True
+
+    @property
+    def is_expired(self) -> bool:
+        return timezone.now() > self.expires_at

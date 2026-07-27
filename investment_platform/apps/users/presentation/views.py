@@ -1,142 +1,150 @@
-"""
-Views کاربران
-"""
-from django.shortcuts import get_object_or_404
-from drf_spectacular.utils import extend_schema
-from rest_framework import generics, permissions, status
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework import viewsets
+from django.conf import settings
+from drf_spectacular.utils import extend_schema, extend_schema_view
+from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-from apps.users.application.use_cases import CreateOTPUseCase, VerifyOTPUseCase
+from apps.users.application.dtos import RegisterUserDTO, UpdateProfileDTO
+from apps.users.application.use_cases import create_otp, register_user, update_profile, verify_otp
+from apps.users.domain.exceptions import OTPAttemptsExceeded, OTPCooldownActive, UserAlreadyExists
 from apps.users.infrastructure.models import User, UserProfile
-from apps.notifications.application.use_cases import CreateAuditLogUseCase
-from shared.permissions import IsAdmin
-from shared.throttles import AuthThrottle, OTPThrottle
+from shared.permissions import IsObserverOrAbove, IsOperatorOrAdmin
+from shared.responses import error_response, success_response
+from shared.throttles import AuthRateThrottle, OTPRequestThrottle, OTPVerifyThrottle
+
 from .serializers import (
-    AdminUserStatusSerializer,
-    OTPRequestSerializer,
-    OTPVerifySerializer,
-    UserProfileSerializer,
-    UserRegistrationSerializer,
-    UserSerializer,
-    CustomTokenObtainPairSerializer,
+    AdminUserStatusSerializer, OTPRequestSerializer, OTPVerifySerializer,
+    UserProfileSerializer, UserRegistrationSerializer, UserSerializer,
 )
-
-
-@extend_schema(tags=["Auth"], summary="ثبت‌نام کاربر جدید")
-class RegisterView(generics.CreateAPIView):
-    serializer_class = UserRegistrationSerializer
-    permission_classes = [permissions.AllowAny]
-    throttle_classes = [AuthThrottle]
 
 
 @extend_schema(tags=["Auth"], summary="ورود با ایمیل و رمز عبور")
 class LoginView(TokenObtainPairView):
-    serializer_class = CustomTokenObtainPairSerializer
     permission_classes = [permissions.AllowAny]
-    throttle_classes = [AuthThrottle]
+    throttle_classes = [AuthRateThrottle]
 
 
 @extend_schema(tags=["Auth"], summary="تمدید access token")
-class TokenRefreshView(TokenRefreshView):
+class RefreshTokenView(TokenRefreshView):
     permission_classes = [permissions.AllowAny]
 
 
-@extend_schema(tags=["Auth"], summary="درخواست کد OTP")
+@extend_schema(tags=["Auth"], summary="ثبت‌نام کاربر جدید", request=UserRegistrationSerializer)
+class RegisterView(APIView):
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = [AuthRateThrottle]
+
+    def post(self, request):
+        serializer = UserRegistrationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        d = serializer.validated_data
+        try:
+            user = register_user.execute(RegisterUserDTO(
+                username=d["username"], email=d["email"], password=d["password"],
+                phone_number=d.get("phone_number"), role=d.get("role", "INVESTOR"),
+            ))
+        except UserAlreadyExists as exc:
+            return error_response(exc.message, status_code=status.HTTP_409_CONFLICT)
+        return success_response({"id": str(user.id), "email": user.email},
+                                 message="ثبت‌نام با موفقیت انجام شد.", status_code=status.HTTP_201_CREATED)
+
+
+@extend_schema(
+    tags=["Auth"], summary="درخواست کد OTP", request=OTPRequestSerializer,
+    description="پاسخ همیشه یکسان است (جلوگیری از User Enumeration طبق ASVS L2).",
+)
 class OTPRequestView(APIView):
     permission_classes = [permissions.AllowAny]
-    throttle_classes = [OTPThrottle]
+    throttle_classes = [OTPRequestThrottle]
 
     def post(self, request):
         serializer = OTPRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
+        email = serializer.validated_data.get("email")
+        phone_number = serializer.validated_data.get("phone_number")
 
-        if data.get("email"):
-            user = get_object_or_404(User, email=data["email"])
-        else:
-            user = get_object_or_404(User, phone_number=data["phone_number"])
+        user = User.objects.filter(email__iexact=email).first() if email else \
+               User.objects.filter(phone_number=phone_number).first()
 
-        otp = CreateOTPUseCase().execute(user=user, purpose=data["purpose"])
+        generic = {"status": "otp_sent", "detail": "در صورت وجود حساب کاربری فعال، کد تایید ارسال شد."}
 
-        response_data = {
-            "status": "otp_sent",
-            "purpose": otp.purpose,
-            "expires_at": otp.expires_at,
-        }
-        # نمایش کد فقط برای staff در محیط dev
-        if request.user.is_authenticated and request.user.is_staff:
-            response_data["dev_code"] = otp.code
+        if not user or not user.is_active:
+            return success_response(generic)
 
-        return Response(response_data)
+        try:
+            otp = create_otp.execute(user=user, purpose=serializer.validated_data["purpose"])
+        except OTPCooldownActive as exc:
+            return error_response(exc.message, status_code=status.HTTP_429_TOO_MANY_REQUESTS)
+
+        payload = dict(generic)
+        payload["expires_at"] = otp.expires_at
+        if settings.DEBUG:
+            payload["dev_code"] = otp.code
+        return success_response(payload)
 
 
-@extend_schema(tags=["Auth"], summary="تأیید OTP و دریافت JWT")
+@extend_schema(tags=["Auth"], summary="تأیید OTP و دریافت JWT", request=OTPVerifySerializer)
 class OTPVerifyView(APIView):
     permission_classes = [permissions.AllowAny]
-    throttle_classes = [OTPThrottle]
+    throttle_classes = [OTPVerifyThrottle]
 
     def post(self, request):
         serializer = OTPVerifySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
+        email = serializer.validated_data.get("email")
+        phone_number = serializer.validated_data.get("phone_number")
 
-        if data.get("email"):
-            user = get_object_or_404(User, email=data["email"])
-        else:
-            user = get_object_or_404(User, phone_number=data["phone_number"])
+        user = User.objects.filter(email__iexact=email).first() if email else \
+               User.objects.filter(phone_number=phone_number).first()
 
-        VerifyOTPUseCase().execute(
-            user=user, code=data["code"], purpose=data["purpose"]
-        )
+        if not user:
+            return error_response("کد تایید نامعتبر یا منقضی شده است.")
+
+        try:
+            is_valid = verify_otp.execute(user=user, code=serializer.validated_data["code"],
+                                           purpose=serializer.validated_data["purpose"])
+        except OTPAttemptsExceeded as exc:
+            return error_response(exc.message, status_code=status.HTTP_429_TOO_MANY_REQUESTS)
+
+        if not is_valid:
+            return error_response("کد تایید نامعتبر یا منقضی شده است.")
 
         refresh = RefreshToken.for_user(user)
-        return Response({
-            "access": str(refresh.access_token),
-            "refresh": str(refresh),
-        })
+        return success_response({"access": str(refresh.access_token), "refresh": str(refresh)})
 
 
-@extend_schema(tags=["Profile"], summary="پروفایل من")
-class UserProfileMeView(APIView):
+@extend_schema(tags=["Profile"], summary="مشاهده / ویرایش پروفایل من")
+class ProfileMeView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         profile, _ = UserProfile.objects.get_or_create(user=request.user)
-        return Response(UserProfileSerializer(profile).data)
+        return success_response(UserProfileSerializer(profile).data)
 
-    @extend_schema(summary="به‌روزرسانی پروفایل من")
     def put(self, request):
-        profile, _ = UserProfile.objects.get_or_create(user=request.user)
-        serializer = UserProfileSerializer(profile, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data)
+        allowed = {"company_name", "address", "bio", "avatar_url", "bank_account_sheba"}
+        dto = UpdateProfileDTO(**{k: v for k, v in request.data.items() if k in allowed})
+        profile = update_profile.execute(user=request.user, dto=dto)
+        return success_response(UserProfileSerializer(profile).data, message="پروفایل به‌روزرسانی شد.")
 
 
-@extend_schema(tags=["Admin"])
+@extend_schema_view(
+    list=extend_schema(tags=["Admin"], summary="لیست کاربران (ادمین/ناظر)"),
+    retrieve=extend_schema(tags=["Admin"], summary="جزئیات کاربر"),
+)
 class AdminUserViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = User.objects.all().order_by("-created_at")
     serializer_class = UserSerializer
-    permission_classes = [IsAdmin]
+    permission_classes = [permissions.IsAuthenticated, IsObserverOrAbove]
 
-    @extend_schema(summary="فعال/غیرفعال کردن کاربر")
-    @action(detail=True, methods=["post"])
+    @extend_schema(tags=["Admin"], summary="فعال/غیرفعال‌سازی کاربر (اپراتور/ادمین)")
+    @action(detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated, IsOperatorOrAdmin])
     def set_active(self, request, pk=None):
         user = self.get_object()
         serializer = AdminUserStatusSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user.is_active = serializer.validated_data["is_active"]
         user.save(update_fields=["is_active"])
-        CreateAuditLogUseCase().execute(
-            actor=request.user,
-            action="USER_ACTIVE_CHANGED",
-            entity="User",
-            entity_id=str(user.id),
-            description=f"وضعیت فعال بودن کاربر به {user.is_active} تغییر کرد.",
-        )
-        return Response({"id": str(user.id), "is_active": user.is_active})
+        return success_response({"id": str(user.id), "is_active": user.is_active})
