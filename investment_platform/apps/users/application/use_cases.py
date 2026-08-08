@@ -7,12 +7,12 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.notifications.application.use_cases import log_action
-from apps.users.domain.exceptions import OTPAttemptsExceeded, OTPCooldownActive, OTPInvalidOrExpired, UserAlreadyExists
+from apps.users.domain.exceptions import OTPAttemptsExceeded, OTPCooldownActive, OTPInvalidOrExpired, UserAlreadyExists, UserNotFound, ProfileAlreadyCompleted
 from apps.users.infrastructure.models import OTPPurpose, User, UserProfile
 from apps.users.infrastructure.repositories import OTPRepository, UserRepository
 from integrations.sms import SMSProviderError, get_sms_provider
 
-from .dtos import RegisterUserDTO, UpdateProfileDTO
+from .dtos import RegisterUserDTO, ResetPasswordDTO, UpdateProfileDTO, CompleteIndividualProfileDTO, CompleteLegalEntityProfileDTO
 
 _user_repo = UserRepository()
 _otp_repo = OTPRepository()
@@ -20,12 +20,14 @@ _otp_repo = OTPRepository()
 
 class RegisterUserUseCase:
     def execute(self, dto: RegisterUserDTO) -> User:
-        if _user_repo.exists_email_or_phone(dto.email, dto.phone_number):
+        if _user_repo.exists_by_phone(dto.phone_number):
             raise UserAlreadyExists()
         with transaction.atomic():
+            username = f"user_{dto.phone_number.replace('+', '')}"
+            temp_password = User.objects.make_random_password()
             user = _user_repo.create_user(
-                username=dto.username, email=dto.email, password=dto.password,
-                phone_number=dto.phone_number, role=dto.role,
+                username=username, phone_number=dto.phone_number, password=temp_password,
+                role=dto.role,
             )
             _user_repo.get_or_create_profile(user)
             log_action.execute(actor=user, action="USER_REGISTERED", entity="User", entity_id=str(user.id))
@@ -96,7 +98,87 @@ class VerifyOTPUseCase:
         return True
 
 
+class ResetPasswordUseCase:
+    def execute(self, dto: ResetPasswordDTO) -> User:
+        user = _user_repo.get_by_phone(dto.phone_number)
+        if not user:
+            raise UserNotFound()
+
+        is_valid = verify_otp.execute(user=user, code=dto.code, purpose=OTPPurpose.RESET_PASSWORD)
+        if not is_valid:
+            raise OTPInvalidOrExpired()
+
+        user.set_password(dto.new_password)
+        user.save(update_fields=["password"])
+        return user
+
+
+class CompleteIndividualProfileUseCase:
+    def execute(self, dto: CompleteIndividualProfileDTO) -> UserProfile:
+        user = _user_repo.get_by_phone(dto.phone_number)
+        if not user:
+            raise UserNotFound()
+
+        profile = _user_repo.get_or_create_profile(user)
+        if profile.profile_type:
+            raise ProfileAlreadyCompleted()
+
+        if dto.password != dto.password_confirm:
+            raise WeakPassword()
+
+        with transaction.atomic():
+            user.set_password(dto.password)
+            user.email = dto.email
+            user.national_code = dto.national_id
+            user.save(update_fields=["password", "email", "national_code"])
+
+            profile.profile_type = UserProfile.ProfileType.INDIVIDUAL
+            profile.first_name = dto.first_name
+            profile.last_name = dto.last_name
+            profile.date_of_birth = dto.date_of_birth
+            profile.contact_number = dto.contact_number
+            profile.save()
+
+        return profile
+
+
+class CompleteLegalEntityProfileUseCase:
+    def execute(self, dto: CompleteLegalEntityProfileDTO) -> UserProfile:
+        user = _user_repo.get_by_phone(dto.phone_number)
+        if not user:
+            raise UserNotFound()
+
+        profile = _user_repo.get_or_create_profile(user)
+        if profile.profile_type:
+            raise ProfileAlreadyCompleted()
+
+        if dto.password != dto.password_confirm:
+            raise WeakPassword()
+
+        with transaction.atomic():
+            user.set_password(dto.password)
+            user.email = dto.email
+            user.save(update_fields=["password", "email"])
+
+            profile.profile_type = UserProfile.ProfileType.LEGAL_ENTITY
+            profile.entity_type = dto.entity_type
+            profile.company_name_persian = dto.company_name_persian
+            profile.company_name_latin = dto.company_name_latin
+            profile.ceo_name = dto.ceo_name
+            profile.surname = dto.surname
+            profile.country = dto.country
+            profile.province = dto.province
+            profile.postal_code = dto.postal_code
+            profile.contact_number = dto.contact_number
+            profile.save()
+
+        return profile
+
+
 register_user = RegisterUserUseCase()
 update_profile = UpdateProfileUseCase()
 create_otp = CreateOTPUseCase()
 verify_otp = VerifyOTPUseCase()
+reset_password = ResetPasswordUseCase()
+complete_individual_profile = CompleteIndividualProfileUseCase()
+complete_legal_entity_profile = CompleteLegalEntityProfileUseCase()

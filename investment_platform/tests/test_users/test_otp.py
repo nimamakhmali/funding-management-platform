@@ -11,7 +11,7 @@ from apps.users.infrastructure.models import OTPCode, OTPPurpose
 class TestOTP:
     def test_request_otp_success(self, api_client, investor_user):
         payload = {
-            "email": investor_user.email,
+            "phone_number": investor_user.phone_number,
             "purpose": OTPPurpose.LOGIN,
         }
         response = api_client.post("/api/v1/otp/request/", payload)
@@ -25,7 +25,7 @@ class TestOTP:
         otp = CreateOTPUseCase().execute(user=investor_user, purpose=OTPPurpose.LOGIN)
 
         payload = {
-            "email": investor_user.email,
+            "phone_number": investor_user.phone_number,
             "code": otp.code,
             "purpose": OTPPurpose.LOGIN,
         }
@@ -35,7 +35,7 @@ class TestOTP:
 
     def test_verify_otp_invalid_code(self, api_client, investor_user):
         payload = {
-            "email": investor_user.email,
+            "phone_number": investor_user.phone_number,
             "code": "000000",
             "purpose": OTPPurpose.LOGIN,
         }

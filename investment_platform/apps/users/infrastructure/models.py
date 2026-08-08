@@ -20,33 +20,30 @@ class UserRole(models.TextChoices):
 
 
 class CustomUserManager(BaseUserManager):
-    def create_user(self, username, email, password=None, **extra_fields):
-        if not email:
-            raise ValueError("ایمیل الزامی است.")
-        if not username:
-            raise ValueError("نام کاربری الزامی است.")
-        email = self.normalize_email(email)
-        user = self.model(username=username, email=email, **extra_fields)
+    def create_user(self, phone_number, password=None, **extra_fields):
+        if not phone_number:
+            raise ValueError("شماره موبایل الزامی است.")
+        user = self.model(phone_number=phone_number, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, username, email, password=None, **extra_fields):
+    def create_superuser(self, phone_number, password=None, **extra_fields):
         extra_fields.setdefault("role", UserRole.ADMIN)
         extra_fields.setdefault("is_active", True)
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
         if extra_fields.get("role") != UserRole.ADMIN:
             raise ValueError("Superuser باید نقش ADMIN داشته باشد.")
-        return self.create_user(username, email, password, **extra_fields)
+        return self.create_user(phone_number, password, **extra_fields)
 
 
 class User(AbstractBaseUser, PermissionsMixin):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     username = models.CharField(max_length=150, unique=True, db_index=True)
-    email = models.EmailField(unique=True, db_index=True)
+    email = models.EmailField(max_length=254, null=True, blank=True, db_index=True)
     phone_number = models.CharField(
-        max_length=20, unique=True, null=True, blank=True,
+        max_length=20, unique=True, db_index=True,
         validators=[RegexValidator(regex=r"^\+98\d{10}$", message="شماره موبایل باید با +98 و سپس ۱۰ رقم باشد.")],
     )
     
@@ -67,20 +64,20 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     objects = CustomUserManager()
 
-    USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = ["username"]
+    USERNAME_FIELD = "phone_number"
+    REQUIRED_FIELDS = []
 
     class Meta:
         db_table = "users"
         indexes = [
-            models.Index(fields=["email"]), 
-            models.Index(fields=["username"]),
-            models.Index(fields=["role"]), 
             models.Index(fields=["phone_number"]),
+            models.Index(fields=["username"]),
+            models.Index(fields=["role"]),
+            models.Index(fields=["email"]),
         ]
 
     def __str__(self):
-        return f"{self.username} ({self.email})"
+        return f"{self.username} ({self.phone_number})"
 
     @property
     def is_admin(self) -> bool:
@@ -92,8 +89,32 @@ class User(AbstractBaseUser, PermissionsMixin):
 
 
 class UserProfile(models.Model):
+    class ProfileType(models.TextChoices):
+        INDIVIDUAL = "INDIVIDUAL", "حقیقی"
+        LEGAL_ENTITY = "LEGAL_ENTITY", "حقوقی"
+
+    class EntityType(models.TextChoices):
+        COMPANY = "COMPANY", "شرکت"
+        ORGANIZATION = "ORGANIZATION", "سازمان"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
+    profile_type = models.CharField(max_length=20, choices=ProfileType.choices, db_index=True, null=True, blank=True)
+
+    first_name = models.CharField(max_length=150, null=True, blank=True)
+    last_name = models.CharField(max_length=150, null=True, blank=True)
+    date_of_birth = models.DateField(null=True, blank=True)
+    contact_number = models.CharField(max_length=20, null=True, blank=True)
+
+    entity_type = models.CharField(max_length=20, choices=EntityType.choices, null=True, blank=True)
+    company_name_persian = models.CharField(max_length=255, null=True, blank=True)
+    company_name_latin = models.CharField(max_length=255, null=True, blank=True)
+    ceo_name = models.CharField(max_length=150, null=True, blank=True)
+    surname = models.CharField(max_length=150, null=True, blank=True)
+    country = models.CharField(max_length=100, null=True, blank=True)
+    province = models.CharField(max_length=100, null=True, blank=True)
+    postal_code = models.CharField(max_length=20, null=True, blank=True)
+
     company_name = models.CharField(max_length=255, null=True, blank=True)
     bio = models.TextField(null=True, blank=True)
     avatar_url = models.URLField(max_length=500, null=True, blank=True)
@@ -104,6 +125,9 @@ class UserProfile(models.Model):
 
     class Meta:
         db_table = "user_profiles"
+        indexes = [
+            models.Index(fields=["profile_type"]),
+        ]
 
     def __str__(self):
         return f"Profile({self.user.username})"
@@ -136,7 +160,7 @@ class OTPCode(models.Model):
         ]
 
     def __str__(self):
-        return f"OTP({self.user.email}, {self.purpose})"
+        return f"OTP({self.user.phone_number}, {self.purpose})"
 
     @property
     def is_valid(self) -> bool:

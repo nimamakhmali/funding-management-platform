@@ -21,7 +21,7 @@ class UserFactory(DjangoModelFactory):
     id = factory.Faker("uuid4")
     username = factory.Sequence(lambda n: f"user{n}")
     email = factory.LazyAttribute(lambda obj: f"{obj.username}@example.com")
-    phone_number = factory.Sequence(lambda n: f"09123456{n:03d}")
+    phone_number = factory.Sequence(lambda n: f"+98123456{n:03d}")
     role = UserRole.INVESTOR
     is_active = True
 

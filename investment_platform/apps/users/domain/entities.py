@@ -8,13 +8,12 @@ from datetime import datetime
 @dataclass
 class UserEntity:
     id: str
-    email: str
+    phone_number: str
     username: str
     role: str
     is_active: bool
     created_at: datetime
-    phone_number: str | None
-    
+
     @property
     def is_investor(self) -> bool:
         return self.role == "INVESTOR"

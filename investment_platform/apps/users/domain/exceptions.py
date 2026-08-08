@@ -5,7 +5,7 @@ from shared.exceptions import BusinessRuleViolation
 
 
 class UserAlreadyExists(BusinessRuleViolation):
-    def __init__(self, field: str = "ایمیل"):
+    def __init__(self, field: str = "شماره موبایل"):
         super().__init__(f"کاربری با این {field} قبلاً ثبت‌نام کرده است.")
 
 
@@ -32,3 +32,8 @@ class OTPAttemptsExceeded(DomainException):
 
 class OTPCooldownActive(DomainException):
     default_message = "لطفاً کمی صبر کنید و دوباره تلاش کنید."
+
+
+class ProfileAlreadyCompleted(BusinessRuleViolation):
+    def __init__(self):
+        super().__init__("پروفایل کاربر قبلاً تکمیل شده است.")

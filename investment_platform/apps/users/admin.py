@@ -12,19 +12,19 @@ class UserProfileInline(admin.StackedInline):
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ("username", "email", "role", "is_active", "is_staff", "phone_verified", "created_at")
+    list_display = ("username", "phone_number", "role", "is_active", "is_staff", "phone_verified", "created_at")
     list_filter = ("role", "is_active", "is_staff")
-    search_fields = ("username", "email", "phone_number", "national_code")
+    search_fields = ("username", "phone_number", "national_code")
     ordering = ("-created_at",)
     readonly_fields = ("created_at", "updated_at", "last_login")
     inlines = (UserProfileInline,)
     fieldsets = (
-        (None, {"fields": ("username", "email", "password")}),
-        ("اطلاعات فردی", {"fields": ("phone_number", "national_code", "phone_verified")}),
+        (None, {"fields": ("username", "phone_number", "password")}),
+        ("اطلاعات فردی", {"fields": ("email", "national_code", "phone_verified")}),
         ("دسترسی‌ها", {"fields": ("role", "is_active", "is_staff", "is_superuser", "groups", "user_permissions")}),
         ("تاریخ‌ها", {"fields": ("last_login", "created_at", "updated_at")}),
     )
-    add_fieldsets = ((None, {"classes": ("wide",), "fields": ("username", "email", "password1", "password2", "role")}),)
+    add_fieldsets = ((None, {"classes": ("wide",), "fields": ("username", "phone_number", "password1", "password2", "role")}),)
 
 
 @admin.register(UserProfile)

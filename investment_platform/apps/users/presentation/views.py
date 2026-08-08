@@ -6,21 +6,31 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-from apps.users.application.dtos import RegisterUserDTO, UpdateProfileDTO
-from apps.users.application.use_cases import create_otp, register_user, update_profile, verify_otp
-from apps.users.domain.exceptions import OTPAttemptsExceeded, OTPCooldownActive, UserAlreadyExists
+from apps.users.application.dtos import (
+    CompleteIndividualProfileDTO, CompleteLegalEntityProfileDTO,
+    RegisterUserDTO, ResetPasswordDTO, UpdateProfileDTO,
+)
+from apps.users.application.use_cases import (
+    complete_individual_profile, complete_legal_entity_profile,
+    create_otp, register_user, reset_password, update_profile, verify_otp,
+)
+from apps.users.domain.exceptions import (
+    OTPAttemptsExceeded, OTPCooldownActive, OTPInvalidOrExpired,
+    ProfileAlreadyCompleted, UserAlreadyExists, UserNotFound,
+)
 from apps.users.infrastructure.models import User, UserProfile
 from shared.permissions import IsObserverOrAbove, IsOperatorOrAdmin
 from shared.responses import error_response, success_response
 from shared.throttles import AuthRateThrottle, OTPRequestThrottle, OTPVerifyThrottle
 
 from .serializers import (
-    AdminUserStatusSerializer, OTPRequestSerializer, OTPVerifySerializer,
-    UserProfileSerializer, UserRegistrationSerializer, UserSerializer,
+    AdminUserStatusSerializer, CompleteIndividualProfileSerializer, CompleteLegalEntityProfileSerializer,
+    ForgotPasswordSerializer, OTPRequestSerializer, OTPVerifySerializer,
+    ResetPasswordSerializer, UserProfileSerializer, UserRegistrationSerializer, UserSerializer,
 )
 
 
-@extend_schema(tags=["Auth"], summary="ورود با ایمیل و رمز عبور")
+@extend_schema(tags=["Auth"], summary="ورود با شماره موبایل و رمز عبور")
 class LoginView(TokenObtainPairView):
     permission_classes = [permissions.AllowAny]
     throttle_classes = [AuthRateThrottle]
@@ -42,12 +52,11 @@ class RegisterView(APIView):
         d = serializer.validated_data
         try:
             user = register_user.execute(RegisterUserDTO(
-                username=d["username"], email=d["email"], password=d["password"],
-                phone_number=d.get("phone_number"), role=d.get("role", "INVESTOR"),
+                phone_number=d["phone_number"], role=d.get("role", "INVESTOR"),
             ))
         except UserAlreadyExists as exc:
             return error_response(exc.message, status_code=status.HTTP_409_CONFLICT)
-        return success_response({"id": str(user.id), "email": user.email},
+        return success_response({"id": str(user.id), "phone_number": user.phone_number},
                                  message="ثبت‌نام با موفقیت انجام شد.", status_code=status.HTTP_201_CREATED)
 
 
@@ -62,11 +71,9 @@ class OTPRequestView(APIView):
     def post(self, request):
         serializer = OTPRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        email = serializer.validated_data.get("email")
         phone_number = serializer.validated_data.get("phone_number")
 
-        user = User.objects.filter(email__iexact=email).first() if email else \
-               User.objects.filter(phone_number=phone_number).first()
+        user = User.objects.filter(phone_number=phone_number).first()
 
         generic = {"status": "otp_sent", "detail": "در صورت وجود حساب کاربری فعال، کد تایید ارسال شد."}
 
@@ -93,11 +100,9 @@ class OTPVerifyView(APIView):
     def post(self, request):
         serializer = OTPVerifySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        email = serializer.validated_data.get("email")
         phone_number = serializer.validated_data.get("phone_number")
 
-        user = User.objects.filter(email__iexact=email).first() if email else \
-               User.objects.filter(phone_number=phone_number).first()
+        user = User.objects.filter(phone_number=phone_number).first()
 
         if not user:
             return error_response("کد تایید نامعتبر یا منقضی شده است.")
@@ -113,6 +118,118 @@ class OTPVerifyView(APIView):
 
         refresh = RefreshToken.for_user(user)
         return success_response({"access": str(refresh.access_token), "refresh": str(refresh)})
+
+
+@extend_schema(tags=["Auth"], summary="فراموشی رمز عبور - ارسال OTP", request=ForgotPasswordSerializer)
+class ForgotPasswordView(APIView):
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = [OTPRequestThrottle]
+
+    def post(self, request):
+        serializer = ForgotPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        phone_number = serializer.validated_data["phone_number"]
+
+        user = User.objects.filter(phone_number=phone_number).first()
+        generic = {"status": "otp_sent", "detail": "در صورت وجود حساب کاربری، کد تایید ارسال شد."}
+
+        if not user or not user.is_active:
+            return success_response(generic)
+
+        try:
+            otp = create_otp.execute(user=user, purpose=OTPPurpose.RESET_PASSWORD)
+        except OTPCooldownActive as exc:
+            return error_response(exc.message, status_code=status.HTTP_429_TOO_MANY_REQUESTS)
+
+        payload = dict(generic)
+        payload["expires_at"] = otp.expires_at
+        if settings.DEBUG:
+            payload["dev_code"] = otp.code
+        return success_response(payload)
+
+
+@extend_schema(tags=["Auth"], summary="بازیابی رمز عبور با OTP", request=ResetPasswordSerializer)
+class ResetPasswordView(APIView):
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = [OTPVerifyThrottle]
+
+    def post(self, request):
+        serializer = ResetPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        d = serializer.validated_data
+
+        try:
+            user = reset_password.execute(ResetPasswordDTO(
+                phone_number=d["phone_number"],
+                code=d["code"],
+                new_password=d["new_password"],
+            ))
+        except (UserNotFound, OTPInvalidOrExpired) as exc:
+            return error_response(str(exc), status_code=status.HTTP_400_BAD_REQUEST)
+        except OTPAttemptsExceeded as exc:
+            return error_response(exc.message, status_code=status.HTTP_429_TOO_MANY_REQUESTS)
+
+        return success_response({"id": str(user.id)}, message="رمز عبور با موفقیت تغییر کرد.")
+
+
+@extend_schema(tags=["Auth"], summary="تکمیل اطلاعات پروفایل (حقیقی)", request=CompleteIndividualProfileSerializer)
+class CompleteIndividualProfileView(APIView):
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = [AuthRateThrottle]
+
+    def post(self, request):
+        serializer = CompleteIndividualProfileSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        d = serializer.validated_data
+
+        try:
+            profile = complete_individual_profile.execute(CompleteIndividualProfileDTO(
+                phone_number=d["phone_number"],
+                first_name=d["first_name"],
+                last_name=d["last_name"],
+                national_id=d["national_id"],
+                date_of_birth=str(d["date_of_birth"]),
+                password=d["password"],
+                password_confirm=d["password_confirm"],
+                contact_number=d.get("contact_number", ""),
+                email=d.get("email", ""),
+            ))
+        except (UserNotFound, ProfileAlreadyCompleted) as exc:
+            return error_response(str(exc), status_code=status.HTTP_400_BAD_REQUEST)
+
+        return success_response({"profile_type": profile.profile_type}, message="پروفایل با موفقیت تکمیل شد.")
+
+
+@extend_schema(tags=["Auth"], summary="تکمیل اطلاعات پروفایل (حقوقی)", request=CompleteLegalEntityProfileSerializer)
+class CompleteLegalEntityProfileView(APIView):
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = [AuthRateThrottle]
+
+    def post(self, request):
+        serializer = CompleteLegalEntityProfileSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        d = serializer.validated_data
+
+        try:
+            profile = complete_legal_entity_profile.execute(CompleteLegalEntityProfileDTO(
+                phone_number=d["phone_number"],
+                entity_type=d["entity_type"],
+                company_name_persian=d["company_name_persian"],
+                company_name_latin=d["company_name_latin"],
+                ceo_name=d["ceo_name"],
+                surname=d["surname"],
+                password=d["password"],
+                password_confirm=d["password_confirm"],
+                country=d["country"],
+                province=d["province"],
+                postal_code=d["postal_code"],
+                contact_number=d.get("contact_number", ""),
+                email=d.get("email", ""),
+            ))
+        except (UserNotFound, ProfileAlreadyCompleted) as exc:
+            return error_response(str(exc), status_code=status.HTTP_400_BAD_REQUEST)
+
+        return success_response({"profile_type": profile.profile_type}, message="پروفایل با موفقیت تکمیل شد.")
 
 
 @extend_schema(tags=["Profile"], summary="مشاهده / ویرایش پروفایل من")
