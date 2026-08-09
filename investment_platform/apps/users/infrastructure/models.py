@@ -167,7 +167,7 @@ class OTPCode(models.Model):
         return not self.is_used and timezone.now() <= self.expires_at
 
     def check_code(self, code: str) -> bool:
-        if self.attempt_count >= self.MAX_ATTEMPTS:
+        if self.attempts >= self.MAX_ATTEMPTS:  # ✅ attempts
             self.is_used = True
             self.save(update_fields=["is_used"])
             raise OTPMaxAttemptsExceeded()
@@ -176,8 +176,8 @@ class OTPCode(models.Model):
             raise InvalidOTP()
 
         if self.code != code:
-            self.attempt_count += 1
-            self.save(update_fields=["attempt_count"])
+            self.attempts += 1  # ✅ attempts
+            self.save(update_fields=["attempts"])  # ✅ attempts
             return False
 
         self.is_used = True

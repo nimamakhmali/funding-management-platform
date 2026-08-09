@@ -18,7 +18,7 @@ from apps.users.domain.exceptions import (
     OTPAttemptsExceeded, OTPCooldownActive, OTPInvalidOrExpired,
     ProfileAlreadyCompleted, UserAlreadyExists, UserNotFound,
 )
-from apps.users.infrastructure.models import User, UserProfile
+from apps.users.infrastructure.models import User, UserProfile, OTPPurpose
 from shared.permissions import IsObserverOrAbove, IsOperatorOrAdmin
 from shared.responses import error_response, success_response
 from shared.throttles import AuthRateThrottle, OTPRequestThrottle, OTPVerifyThrottle
@@ -137,7 +137,7 @@ class ForgotPasswordView(APIView):
             return success_response(generic)
 
         try:
-            otp = create_otp.execute(user=user, purpose=OTPPurpose.RESET_PASSWORD)
+            otp = create_otp.execute(user=user, purpose=OTPPurpose.RESET_PASSWORD)  # ✅
         except OTPCooldownActive as exc:
             return error_response(exc.message, status_code=status.HTTP_429_TOO_MANY_REQUESTS)
 

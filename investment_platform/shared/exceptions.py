@@ -48,24 +48,20 @@ class RateLimitExceeded(DomainException):
 class BusinessRuleViolation(DomainException):
     """نقض قانون بیزینس"""
     def __init__(self, message: str):
-        super().__init__(message, "business_rule_violation")
-
+        super().__init__(message, code="business_rule_violation")  # ✅ اضافه کردن code=
 
 class ResourceNotFound(DomainException):
-    """منبع پیدا نشد"""
     def __init__(self, resource: str, identifier: str = ""):
         msg = f"{resource} یافت نشد."
         if identifier:
             msg = f"{resource} با شناسه «{identifier}» یافت نشد."
-        super().__init__(msg, "not_found")
-
+        super().__init__(msg, code="not_found")  # ✅
 
 class PermissionDenied(DomainException):
-    """دسترسی غیرمجاز"""
     def __init__(self, message: str = "دسترسی غیرمجاز است."):
-        super().__init__(message, "permission_denied")
-
-
+        super().__init__(message, code="permission_denied")  # ✅
+        
+        
 # ---------------------------------------------------------------------------
 # Specific Domain Exceptions
 # ---------------------------------------------------------------------------
