@@ -6,6 +6,8 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
+from rest_framework.exceptions import ValidationError as DRFValidationError
+
 from apps.users.application.dtos import (
     CompleteIndividualProfileDTO, CompleteLegalEntityProfileDTO,
     RegisterUserDTO, ResetPasswordDTO, UpdateProfileDTO,
@@ -180,7 +182,7 @@ class ResetPasswordView(APIView):
 
 
 @authentication_classes([])
-@extend_schema(tags=["Auth"], summary="تکمیل اطلاعات پروفایل (حقیقی)", request=CompleteIndividualProfileSerializer)
+@extend_schema(tags=["Auth"], summary="تکمیل اطلاعات پروفایل (حقیقی)")
 class CompleteIndividualProfileView(APIView):
     permission_classes = [permissions.AllowAny]
     throttle_classes = [AuthRateThrottle]
@@ -204,9 +206,17 @@ class CompleteIndividualProfileView(APIView):
             ))
         except (UserNotFound, ProfileAlreadyCompleted) as exc:
             return error_response(str(exc), status_code=status.HTTP_400_BAD_REQUEST)
+        except DRFValidationError as exc:
+            # خطاهای validation مثل کد ملی تکراری
+            return error_response(
+                str(exc.detail),
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
 
-        return success_response({"profile_type": profile.profile_type}, message="پروفایل با موفقیت تکمیل شد.")
-
+        return success_response(
+            {"profile_type": profile.profile_type},
+            message="پروفایل با موفقیت تکمیل شد.",
+        )
 
 @authentication_classes([])
 @extend_schema(tags=["Auth"], summary="تکمیل اطلاعات پروفایل (حقوقی)", request=CompleteLegalEntityProfileSerializer)
@@ -235,7 +245,9 @@ class CompleteLegalEntityProfileView(APIView):
                 contact_number=d.get("contact_number", ""),
                 email=d.get("email", ""),
             ))
-        except (UserNotFound, ProfileAlreadyCompleted) as exc:
+        except UserNotFound as exc:
+            return error_response(str(exc), status_code=status.HTTP_404_NOT_FOUND)
+        except ProfileAlreadyCompleted as exc:
             return error_response(str(exc), status_code=status.HTTP_400_BAD_REQUEST)
 
         return success_response({"profile_type": profile.profile_type}, message="پروفایل با موفقیت تکمیل شد.")

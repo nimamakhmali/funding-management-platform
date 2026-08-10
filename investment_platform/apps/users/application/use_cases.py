@@ -3,16 +3,22 @@ import random
 from datetime import timedelta
 
 from django.conf import settings
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.utils import timezone
 
 from apps.notifications.application.use_cases import log_action
-from apps.users.domain.exceptions import OTPAttemptsExceeded, OTPCooldownActive, OTPInvalidOrExpired, UserAlreadyExists, UserNotFound, ProfileAlreadyCompleted
+from apps.users.domain.exceptions import (
+    OTPAttemptsExceeded, OTPCooldownActive, OTPInvalidOrExpired,
+    UserAlreadyExists, UserNotFound, ProfileAlreadyCompleted,
+)
 from apps.users.infrastructure.models import OTPPurpose, User, UserProfile
 from apps.users.infrastructure.repositories import OTPRepository, UserRepository
 from integrations.sms import SMSProviderError, get_sms_provider
 
-from .dtos import RegisterUserDTO, ResetPasswordDTO, UpdateProfileDTO, CompleteIndividualProfileDTO, CompleteLegalEntityProfileDTO
+from .dtos import (
+    RegisterUserDTO, ResetPasswordDTO, UpdateProfileDTO,
+    CompleteIndividualProfileDTO, CompleteLegalEntityProfileDTO,
+)
 
 _user_repo = UserRepository()
 _otp_repo = OTPRepository()
@@ -26,11 +32,16 @@ class RegisterUserUseCase:
             username = f"user_{dto.phone_number.replace('+', '')}"
             temp_password = User.objects.make_random_password()
             user = _user_repo.create_user(
-                username=username, phone_number=dto.phone_number, password=temp_password,
+                username=username,
+                phone_number=dto.phone_number,
+                password=temp_password,
                 role=dto.role,
             )
             _user_repo.get_or_create_profile(user)
-            log_action.execute(actor=user, action="USER_REGISTERED", entity="User", entity_id=str(user.id))
+            log_action.execute(
+                actor=user, action="USER_REGISTERED",
+                entity="User", entity_id=str(user.id),
+            )
         return user
 
 
@@ -46,34 +57,40 @@ class UpdateProfileUseCase:
 
 
 class CreateOTPUseCase:
-    """ارسال OTP واقعی از طریق سرویس پیامکی ایرانی، با Cooldown ضد اسپم/هزینه اضافه."""
-
     def execute(self, *, user: User, purpose: str = OTPPurpose.LOGIN):
         ttl = getattr(settings, "OTP_TTL_MINUTES", 2)
         cooldown = getattr(settings, "OTP_RESEND_COOLDOWN_SECONDS", 60)
 
         recent = _otp_repo.get_latest_any(user, purpose)
         if recent and (timezone.now() - recent.created_at).total_seconds() < cooldown:
-            raise OTPCooldownActive(f"لطفاً {cooldown} ثانیه صبر کنید و دوباره تلاش کنید.")
+            raise OTPCooldownActive(
+                f"لطفاً {cooldown} ثانیه صبر کنید و دوباره تلاش کنید."
+            )
 
         code = f"{random.randint(0, 999999):06d}"
-        otp = _otp_repo.create(user=user, purpose=purpose, code=code,
-                                expires_at=timezone.now() + timedelta(minutes=ttl))
+        otp = _otp_repo.create(
+            user=user, purpose=purpose, code=code,
+            expires_at=timezone.now() + timedelta(minutes=ttl),
+        )
 
         if user.phone_number and getattr(settings, "SMS_ENABLED", False):
             try:
-                result = get_sms_provider().send_otp(phone_number=user.phone_number, code=code)
-                log_action.execute(actor=user, action="OTP_SENT", entity="OTPCode",
-                                    entity_id=str(otp.id), metadata=result.as_dict())
+                result = get_sms_provider().send_otp(
+                    phone_number=user.phone_number, code=code
+                )
+                log_action.execute(
+                    actor=user, action="OTP_SENT", entity="OTPCode",
+                    entity_id=str(otp.id), metadata=result.as_dict(),
+                )
             except SMSProviderError as exc:
-                log_action.execute(actor=user, action="OTP_SEND_FAILED", entity="OTPCode",
-                                    entity_id=str(otp.id), description=str(exc))
+                log_action.execute(
+                    actor=user, action="OTP_SEND_FAILED", entity="OTPCode",
+                    entity_id=str(otp.id), description=str(exc),
+                )
         return otp
 
 
 class VerifyOTPUseCase:
-    """تأیید OTP با محدودیت تعداد تلاش (Brute-force protection) طبق ASVS L2."""
-
     def execute(self, *, user: User, code: str, purpose: str = OTPPurpose.LOGIN) -> bool:
         otp = _otp_repo.get_latest_active(user, purpose)
         if not otp:
@@ -104,7 +121,9 @@ class ResetPasswordUseCase:
         if not user:
             raise UserNotFound()
 
-        is_valid = verify_otp.execute(user=user, code=dto.code, purpose=OTPPurpose.RESET_PASSWORD)
+        is_valid = verify_otp.execute(
+            user=user, code=dto.code, purpose=OTPPurpose.RESET_PASSWORD
+        )
         if not is_valid:
             raise OTPInvalidOrExpired()
 
@@ -120,24 +139,49 @@ class CompleteIndividualProfileUseCase:
             raise UserNotFound()
 
         profile = _user_repo.get_or_create_profile(user)
-        if profile.profile_type:
+
+        # اگر پروفایل قبلاً تکمیل شده بود، فقط رمز عبور را آپدیت کن
+        # (کاربر ممکن است دوباره فرم را submit کند)
+        if profile.profile_type == UserProfile.ProfileType.INDIVIDUAL:
+            # پروفایل موجود است - فقط رمز را آپدیت کن
+            with transaction.atomic():
+                user.set_password(dto.password)
+                user.save(update_fields=["password"])
+            return profile
+
+        if profile.profile_type and profile.profile_type != UserProfile.ProfileType.INDIVIDUAL:
             raise ProfileAlreadyCompleted()
 
-        if dto.password != dto.password_confirm:
-            raise WeakPassword()
+        try:
+            with transaction.atomic():
+                user.set_password(dto.password)
+                user.email = dto.email or ""
 
-        with transaction.atomic():
-            user.set_password(dto.password)
-            user.email = dto.email
-            user.national_code = dto.national_id
-            user.save(update_fields=["password", "email", "national_code"])
+                # بررسی تکراری بودن کد ملی قبل از ذخیره
+                existing = User.objects.filter(
+                    national_code=dto.national_id
+                ).exclude(pk=user.pk).first()
+                if existing:
+                    from rest_framework import serializers
+                    raise serializers.ValidationError(
+                        {"national_id": "این کد ملی قبلاً ثبت شده است."}
+                    )
 
-            profile.profile_type = UserProfile.ProfileType.INDIVIDUAL
-            profile.first_name = dto.first_name
-            profile.last_name = dto.last_name
-            profile.date_of_birth = dto.date_of_birth
-            profile.contact_number = dto.contact_number
-            profile.save()
+                user.national_code = dto.national_id
+                user.save(update_fields=["password", "email", "national_code"])
+
+                profile.profile_type = UserProfile.ProfileType.INDIVIDUAL
+                profile.first_name = dto.first_name
+                profile.last_name = dto.last_name
+                profile.date_of_birth = dto.date_of_birth
+                profile.contact_number = dto.contact_number or ""
+                profile.save()
+
+        except IntegrityError:
+            from rest_framework import serializers
+            raise serializers.ValidationError(
+                {"national_id": "این کد ملی قبلاً در سیستم ثبت شده است."}
+            )
 
         return profile
 
@@ -149,15 +193,19 @@ class CompleteLegalEntityProfileUseCase:
             raise UserNotFound()
 
         profile = _user_repo.get_or_create_profile(user)
-        if profile.profile_type:
-            raise ProfileAlreadyCompleted()
 
-        if dto.password != dto.password_confirm:
-            raise WeakPassword()
+        if profile.profile_type == UserProfile.ProfileType.LEGAL_ENTITY:
+            with transaction.atomic():
+                user.set_password(dto.password)
+                user.save(update_fields=["password"])
+            return profile
+
+        if profile.profile_type and profile.profile_type != UserProfile.ProfileType.LEGAL_ENTITY:
+            raise ProfileAlreadyCompleted()
 
         with transaction.atomic():
             user.set_password(dto.password)
-            user.email = dto.email
+            user.email = dto.email or ""
             user.save(update_fields=["password", "email"])
 
             profile.profile_type = UserProfile.ProfileType.LEGAL_ENTITY
@@ -169,7 +217,7 @@ class CompleteLegalEntityProfileUseCase:
             profile.country = dto.country
             profile.province = dto.province
             profile.postal_code = dto.postal_code
-            profile.contact_number = dto.contact_number
+            profile.contact_number = dto.contact_number or ""
             profile.save()
 
         return profile
