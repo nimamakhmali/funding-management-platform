@@ -23,6 +23,9 @@ class CustomUserManager(BaseUserManager):
     def create_user(self, phone_number, password=None, **extra_fields):
         if not phone_number:
             raise ValueError("شماره موبایل الزامی است.")
+        extra_fields.setdefault(
+            "username", f"user_{phone_number.replace('+', '')}"
+        )
         user = self.model(phone_number=phone_number, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
@@ -187,3 +190,24 @@ class OTPCode(models.Model):
     @property
     def is_expired(self) -> bool:
         return timezone.now() > self.expires_at
+    
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """
+    JWT token را با اطلاعات اضافی (role, phone_number) غنی می‌کند
+    تا فرانت‌اند بتواند role را از توکن decode کند.
+    """
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        # اطلاعات اضافی در payload
+        token["role"] = user.role
+        token["phone_number"] = user.phone_number
+        token["username"] = user.username or ""
+        return token
+
+    def validate(self, attrs):
+        # بک‌اند از phone_number به جای username استفاده می‌کند
+        data = super().validate(attrs)
+        return data

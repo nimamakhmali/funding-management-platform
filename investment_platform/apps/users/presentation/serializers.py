@@ -1,7 +1,23 @@
 from rest_framework import serializers
 from django.core.validators import RegexValidator
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from apps.users.infrastructure.models import OTPPurpose, User, UserRole, UserProfile
+
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """
+    JWT token را با role و phone_number غنی می‌کند
+    تا فرانت‌اند بتواند role را مستقیم از توکن decode کند.
+    """
+
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        token["role"] = user.role
+        token["phone_number"] = user.phone_number
+        token["username"] = user.username or ""
+        return token
 
 
 class UserMinimalSerializer(serializers.ModelSerializer):
@@ -107,7 +123,10 @@ class CompleteIndividualProfileSerializer(serializers.Serializer):
     )
     first_name = serializers.CharField(max_length=150)
     last_name = serializers.CharField(max_length=150)
-    national_id = serializers.CharField(max_length=10, validators=[RegexValidator(regex=r"^\d{10}$", message="کد ملی باید ۱۰ رقم باشد.")])
+    national_id = serializers.CharField(
+        max_length=10,
+        validators=[RegexValidator(regex=r"^\d{10}$", message="کد ملی باید ۱۰ رقم باشد.")]
+    )
     date_of_birth = serializers.DateField()
     password = serializers.CharField(write_only=True, min_length=8, style={"input_type": "password"})
     password_confirm = serializers.CharField(write_only=True, style={"input_type": "password"})

@@ -25,16 +25,18 @@ from shared.throttles import AuthRateThrottle, OTPRequestThrottle, OTPVerifyThro
 
 from .serializers import (
     AdminUserStatusSerializer, CompleteIndividualProfileSerializer, CompleteLegalEntityProfileSerializer,
-    ForgotPasswordSerializer, OTPRequestSerializer, OTPVerifySerializer,
+    CustomTokenObtainPairSerializer, ForgotPasswordSerializer, OTPRequestSerializer, OTPVerifySerializer,
     ResetPasswordSerializer, UserProfileSerializer, UserRegistrationSerializer, UserSerializer,
 )
+
+from .serializers import CustomTokenObtainPairSerializer
 
 
 @extend_schema(tags=["Auth"], summary="ورود با شماره موبایل و رمز عبور")
 class LoginView(TokenObtainPairView):
     permission_classes = [permissions.AllowAny]
     throttle_classes = [AuthRateThrottle]
-
+    serializer_class = CustomTokenObtainPairSerializer  # ← این خط اضافه شود
 
 @extend_schema(tags=["Auth"], summary="تمدید access token")
 class RefreshTokenView(TokenRefreshView):
