@@ -1,7 +1,7 @@
 from django.conf import settings
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import permissions, status, viewsets
-from rest_framework.decorators import action
+from rest_framework.decorators import action, authentication_classes
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
@@ -43,6 +43,7 @@ class RefreshTokenView(TokenRefreshView):
     permission_classes = [permissions.AllowAny]
 
 
+@authentication_classes([])
 @extend_schema(tags=["Auth"], summary="ثبت‌نام کاربر جدید", request=UserRegistrationSerializer)
 class RegisterView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -62,6 +63,7 @@ class RegisterView(APIView):
                                  message="ثبت‌نام با موفقیت انجام شد.", status_code=status.HTTP_201_CREATED)
 
 
+@authentication_classes([])
 @extend_schema(
     tags=["Auth"], summary="درخواست کد OTP", request=OTPRequestSerializer,
     description="پاسخ همیشه یکسان است (جلوگیری از User Enumeration طبق ASVS L2).",
@@ -94,6 +96,7 @@ class OTPRequestView(APIView):
         return success_response(payload)
 
 
+@authentication_classes([])
 @extend_schema(tags=["Auth"], summary="تأیید OTP و دریافت JWT", request=OTPVerifySerializer)
 class OTPVerifyView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -122,6 +125,7 @@ class OTPVerifyView(APIView):
         return success_response({"access": str(refresh.access_token), "refresh": str(refresh)})
 
 
+@authentication_classes([])
 @extend_schema(tags=["Auth"], summary="فراموشی رمز عبور - ارسال OTP", request=ForgotPasswordSerializer)
 class ForgotPasswordView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -150,6 +154,7 @@ class ForgotPasswordView(APIView):
         return success_response(payload)
 
 
+@authentication_classes([])
 @extend_schema(tags=["Auth"], summary="بازیابی رمز عبور با OTP", request=ResetPasswordSerializer)
 class ResetPasswordView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -174,6 +179,7 @@ class ResetPasswordView(APIView):
         return success_response({"id": str(user.id)}, message="رمز عبور با موفقیت تغییر کرد.")
 
 
+@authentication_classes([])
 @extend_schema(tags=["Auth"], summary="تکمیل اطلاعات پروفایل (حقیقی)", request=CompleteIndividualProfileSerializer)
 class CompleteIndividualProfileView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -202,6 +208,7 @@ class CompleteIndividualProfileView(APIView):
         return success_response({"profile_type": profile.profile_type}, message="پروفایل با موفقیت تکمیل شد.")
 
 
+@authentication_classes([])
 @extend_schema(tags=["Auth"], summary="تکمیل اطلاعات پروفایل (حقوقی)", request=CompleteLegalEntityProfileSerializer)
 class CompleteLegalEntityProfileView(APIView):
     permission_classes = [permissions.AllowAny]
