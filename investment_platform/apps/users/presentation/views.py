@@ -182,7 +182,26 @@ class ResetPasswordView(APIView):
 
 
 @authentication_classes([])
-@extend_schema(tags=["Auth"], summary="تکمیل اطلاعات پروفایل (حقیقی)")
+@extend_schema(
+    tags=["Auth"],
+    summary="تکمیل اطلاعات پروفایل (حقیقی)",
+    request=CompleteIndividualProfileSerializer,   # ← اضافه شد
+    responses={
+        200: {
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "data": {
+                    "type": "object",
+                    "properties": {
+                        "profile_type": {"type": "string"}
+                    }
+                },
+                "message": {"type": "string"}
+            }
+        }
+    }
+)
 class CompleteIndividualProfileView(APIView):
     permission_classes = [permissions.AllowAny]
     throttle_classes = [AuthRateThrottle]
@@ -253,19 +272,41 @@ class CompleteLegalEntityProfileView(APIView):
         return success_response({"profile_type": profile.profile_type}, message="پروفایل با موفقیت تکمیل شد.")
 
 
-@extend_schema(tags=["Profile"], summary="مشاهده / ویرایش پروفایل من")
+
+@extend_schema(
+    tags=["Profile"],
+    summary="مشاهده / ویرایش پروفایل من",
+    responses={
+        200: UserProfileSerializer,    # ← اضافه شد
+    }
+)
 class ProfileMeView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         profile, _ = UserProfile.objects.get_or_create(user=request.user)
         return success_response(UserProfileSerializer(profile).data)
-
+   
+    @extend_schema(
+        tags=["Profile"],
+        summary="ویرایش پروفایل من",
+        request=UserProfileSerializer,    # ← اضافه شد
+        responses={200: UserProfileSerializer},
+    )
     def put(self, request):
-        allowed = {"company_name", "address", "bio", "avatar_url", "bank_account_sheba"}
-        dto = UpdateProfileDTO(**{k: v for k, v in request.data.items() if k in allowed})
+        # ✅ اصلاح: bank_account_number نه bank_account_sheba
+        allowed = {
+            "company_name", "address", "bio",
+            "avatar_url", "bank_account_number",
+        }
+        dto = UpdateProfileDTO(
+            **{k: v for k, v in request.data.items() if k in allowed}
+        )
         profile = update_profile.execute(user=request.user, dto=dto)
-        return success_response(UserProfileSerializer(profile).data, message="پروفایل به‌روزرسانی شد.")
+        return success_response(
+            UserProfileSerializer(profile).data,
+            message="پروفایل به‌روزرسانی شد.",
+        )
 
 
 @extend_schema_view(
