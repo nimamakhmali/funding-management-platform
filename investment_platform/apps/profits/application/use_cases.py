@@ -5,6 +5,9 @@ from decimal import Decimal
 from django.db import transaction
 from django.db.models import Sum
 
+from django.utils import timezone
+
+
 from apps.investments.infrastructure.models import Investment, InvestmentStatus, Transaction as WalletTransaction, TransactionType, Wallet
 from apps.notifications.application.use_cases import create_notification, log_action
 from apps.notifications.infrastructure.models import NotificationType
@@ -12,6 +15,8 @@ from apps.profits.infrastructure.models import PayoutItem, PayoutItemStatus, Pro
 from integrations.payment.sejam import SejamSettlementClient
 from integrations.payment.base import PaymentGatewayError
 from shared.exceptions import BusinessRuleViolation, ValidationException
+
+
 
 
 class CalculateProfitDistributionUseCase:
@@ -71,6 +76,8 @@ class ApprovePayoutUseCase:
             tx = WalletTransaction.objects.create(user=item.user, amount=item.amount, type=TransactionType.PROFIT, is_successful=True)
             item.transaction = tx
             item.status = PayoutItemStatus.PAID_TO_WALLET
+            item.paid_at = timezone.now()  # ← اضافه شد
+            item.save(update_fields=["transaction", "status", "paid_at"])  # ← paid_at اضافه شد
             item.save(update_fields=["transaction", "status"])
 
             create_notification.execute(user=item.user, title="واریز سود",

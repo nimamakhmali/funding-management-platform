@@ -167,3 +167,128 @@ class PaymentGatewayConfigViewSet(viewsets.ModelViewSet):
             return success_response({"status": "ok", "authority": result.authority})
         except PaymentGatewayError as exc:
             return error_response(str(exc))
+        
+        
+        
+# در انتهای فایل اضافه کن
+
+from apps.investments.infrastructure.models import Investment, InvestmentStatus
+from apps.profits.infrastructure.models import PayoutItem
+from django.db.models import Sum
+
+class MyInvestmentsView(APIView):
+    """لیست سرمایه‌گذاری‌های کاربر جاری"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        investments = (
+            Investment.objects
+            .filter(investor=request.user)
+            .select_related("project", "project__owner")
+            .order_by("-invest_date")
+        )
+
+        # فیلتر وضعیت
+        status_filter = request.query_params.get("status")
+        if status_filter:
+            investments = investments.filter(status=status_filter)
+
+        from shared.pagination import StandardPagination
+        paginator = StandardPagination()
+        page = paginator.paginate_queryset(investments, request)
+
+        results = []
+        for inv in (page if page is not None else investments):
+            results.append({
+                "id": str(inv.id),
+                "project_id": str(inv.project_id),
+                "project_title": inv.project.title,
+                "project_status": inv.project.status,
+                "project_status_display": inv.project.get_status_display(),
+                "project_cover_image": inv.project.cover_image_url,
+                "project_profit_rate": str(inv.project.profit_rate_percentage or 0),
+                "project_funding_percentage": str(inv.project.funding_percentage),
+                "amount": str(inv.amount),
+                "status": inv.status,
+                "invest_date": inv.invest_date.isoformat(),
+                "current_value": str(inv.amount),  # در فاز بعد با سود واقعی جایگزین می‌شود
+            })
+
+        if page is not None:
+            return paginator.get_paginated_response(results)
+        return success_response(results)
+
+
+class MyInvestmentDetailView(APIView):
+    """جزئیات یک سرمایه‌گذاری خاص (برای صفحه [id])"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, project_id):
+        """
+        با project_id می‌گیریم چون صفحه /invest-project/[id]
+        بر اساس id پروژه کار می‌کند
+        """
+        try:
+            from apps.projects.infrastructure.models import Project
+            project = Project.objects.get(id=project_id)
+        except Project.DoesNotExist:
+            return error_response("پروژه یافت نشد.", status_code=404)
+
+        # سرمایه‌گذاری موفق این کاربر در این پروژه
+        investment = (
+            Investment.objects
+            .filter(
+                investor=request.user,
+                project=project,
+                status=InvestmentStatus.SUCCESSFUL,
+            )
+            .first()
+        )
+
+        # سودهای دریافتی از این پروژه
+        total_profit = (
+            PayoutItem.objects
+            .filter(
+                user=request.user,
+                period__project=project,
+                status="PAID_TO_WALLET",
+            )
+            .aggregate(total=Sum("amount"))["total"] or 0
+        )
+
+        data = {
+            "project": {
+                "id": str(project.id),
+                "title": project.title,
+                "description": project.description,
+                "category_display": project.category_display,
+                "cover_image_url": project.cover_image_url,
+                "required_budget": str(project.required_budget),
+                "raised_amount": str(project.raised_amount),
+                "min_investment_amount": str(project.min_investment_amount),
+                "max_investment_amount": str(project.max_investment_amount or project.required_budget),
+                "profit_rate_percentage": str(project.profit_rate_percentage or 0),
+                "remaining_days": project.remaining_days,
+                "funding_percentage": str(project.funding_percentage),
+                "investors_count": project.investors_count,
+                "status": project.status,
+                "status_display": project.get_status_display(),
+                "start_date": project.start_date.isoformat() if project.start_date else None,
+                "end_date": project.end_date.isoformat() if project.end_date else None,
+            },
+            "my_investment": {
+                "id": str(investment.id) if investment else None,
+                "amount": str(investment.amount) if investment else None,
+                "invest_date": investment.invest_date.isoformat() if investment else None,
+                "status": investment.status if investment else None,
+            } if investment else None,
+            "profit_summary": {
+                "total_received": str(total_profit),
+                "estimated_annual": str(
+                    float(investment.amount if investment else 0) *
+                    float(project.profit_rate_percentage or 0) / 100
+                ),
+            },
+        }
+
+        return success_response(data)        

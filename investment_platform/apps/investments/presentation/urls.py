@@ -4,8 +4,10 @@ from django.urls import path
 from .views import (
     InvestmentConfirmView, InvestmentCreateView, MockDepositView, PaymentCallbackView,
     PaymentGatewayConfigViewSet, PaymentInitiateView, TransactionHistoryView,
-    WalletView, WithdrawalView,
+    WalletView, WithdrawalView, MyInvestmentsView, MyInvestmentDetailView
 )
+
+
 
 app_name = "investments"
 
@@ -21,4 +23,6 @@ urlpatterns = [
     path("transactions/", TransactionHistoryView.as_view(), name="transaction-list"),
     path("invest/", InvestmentCreateView.as_view(), name="invest-create"),
     path("investments/<uuid:pk>/confirm/", InvestmentConfirmView.as_view(), name="investment-confirm"),
+    path("my-investments/", MyInvestmentsView.as_view(), name="my-investments"),
+    path("my-investments/<uuid:project_id>/", MyInvestmentDetailView.as_view(), name="my-investment-detail"),
 ] + router.urls

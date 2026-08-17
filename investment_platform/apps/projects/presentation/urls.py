@@ -1,5 +1,5 @@
 from rest_framework.routers import DefaultRouter
-from .views import ProjectViewSet
+https://meet.google.com/tvp-mxet-xph from .views import ProjectViewSet
 
 app_name = "projects"
 

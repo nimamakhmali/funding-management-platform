@@ -83,3 +83,109 @@ class SejamCallbackView(APIView):
             settlement_reference=request.data.get("settlement_reference"),
         )
         return success_response({"payout_item_id": str(item.id)})
+    
+    
+@extend_schema(
+    tags=["Profit"],
+    summary="سودهای دریافتی سرمایه‌گذار (پنل سرمایه‌گذار)",
+)
+class InvestorPayoutsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        """
+        لیست سودهای دریافتی کاربر جاری.
+        فیلترها: period (monthly/quarterly/yearly), project_id
+        """
+        from apps.profits.infrastructure.models import PayoutItem
+
+        qs = (
+            PayoutItem.objects
+            .filter(user=request.user)
+            .select_related("period__project", "transaction")
+            .order_by("-created_at")
+        )
+
+        
+
+        # فیلتر پروژه
+        project_id = request.query_params.get("project_id")
+        if project_id:
+            qs = qs.filter(period__project_id=project_id)
+
+        # فیلتر وضعیت
+        status_filter = request.query_params.get("status")
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+
+        # پاگینیشن دستی
+        from shared.pagination import StandardPagination
+        paginator = StandardPagination()
+        page = paginator.paginate_queryset(qs, request)
+
+        results = []
+        for item in (page if page is not None else qs):
+            results.append({
+                "id": str(item.id),
+                "period_title": item.period.title,
+                "project_id": str(item.period.project_id),
+                "project_name": item.period.project.title,
+                "amount": str(item.amount),
+                "status": item.status,
+                "paid_at": item.paid_at.isoformat() if item.paid_at else None,
+                "created_at": item.created_at.isoformat(),
+            })
+
+        if page is not None:
+            return paginator.get_paginated_response(results)
+
+        return success_response(results)    
+    
+    
+class InvestorProfitSummaryView(APIView):
+    """آمار خلاصه سود سرمایه‌گذار برای ProfitReportInformation"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from apps.profits.infrastructure.models import PayoutItem, PayoutItemStatus
+        from django.db.models import Sum, Count
+
+        # سود کل دریافتی
+        paid = (
+            PayoutItem.objects
+            .filter(user=request.user, status=PayoutItemStatus.PAID_TO_WALLET)
+            .aggregate(total=Sum("amount"), count=Count("id"))
+        )
+
+        # در انتظار پرداخت
+        pending = (
+            PayoutItem.objects
+            .filter(user=request.user, status=PayoutItemStatus.PENDING)
+            .aggregate(total=Sum("amount"), count=Count("id"))
+        )
+
+        # میانگین ROI از سرمایه‌گذاری‌های موفق
+        from apps.investments.infrastructure.models import Investment, InvestmentStatus
+        investments = Investment.objects.filter(
+            investor=request.user,
+            status=InvestmentStatus.SUCCESSFUL,
+        ).select_related("project")
+
+        roi = 0.0
+        if investments.exists():
+            rates = [
+                float(inv.project.profit_rate_percentage or 0)
+                for inv in investments
+                if inv.project.profit_rate_percentage
+            ]
+            roi = sum(rates) / len(rates) if rates else 0.0
+
+        data = {
+            "total_received": str(paid["total"] or 0),
+            "total_received_count": paid["count"] or 0,
+            "pending_amount": str(pending["total"] or 0),
+            "pending_count": pending["count"] or 0,
+            "avg_roi_percentage": round(roi, 1),
+        }
+
+        return success_response(data)    

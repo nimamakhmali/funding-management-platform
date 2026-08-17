@@ -44,11 +44,16 @@ class PayoutItem(models.Model):
     amount = models.DecimalField(max_digits=18, decimal_places=2, validators=[MinValueValidator(0)])
     status = models.CharField(max_length=24, choices=PayoutItemStatus.choices, default=PayoutItemStatus.PENDING, db_index=True)
     settlement_reference = models.CharField(max_length=255, null=True, blank=True)
+    paid_at = models.DateTimeField(null=True, blank=True)  # ← اضافه شد
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = "payout_items"
-        indexes = [models.Index(fields=["period"]), models.Index(fields=["user"]), models.Index(fields=["status"])]
+        indexes = [
+            models.Index(fields=["period"]),
+            models.Index(fields=["user"]),
+            models.Index(fields=["status"]),
+        ]
 
     def __str__(self):
         return f"PayoutItem({self.period_id}, {self.user_id}, {self.amount})"

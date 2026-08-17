@@ -63,7 +63,7 @@ ACTIVE_STATUSES = [
 )
 class ProjectViewSet(viewsets.ModelViewSet):
     owner_field = "owner_id"
-
+    
     def get_serializer_class(self):
         if self.action in {"create", "update", "partial_update"}:
             return ProjectCreateSerializer
@@ -313,3 +313,264 @@ class ProjectViewSet(viewsets.ModelViewSet):
             DocumentSerializer(doc, context={"request": request}).data,
             status_code=201,
         )
+        
+    @extend_schema(tags=["Projects"], summary="آمار کلی پلتفرم (عمومی)", responses={200: None})
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="platform-stats",
+        permission_classes=[permissions.AllowAny],
+    )
+    def platform_stats(self, request):
+        """
+        آمار کلی پلتفرم برای صفحه اصلی (landing page).
+        بدون نیاز به احراز هویت.
+        """
+        from apps.investments.infrastructure.models import Investment, InvestmentStatus
+        from apps.users.infrastructure.models import User
+
+        # تعداد سرمایه‌گذاران فعال (کاربران با نقش INVESTOR که سرمایه‌گذاری موفق دارند)
+        total_investors = (
+            Investment.objects
+            .filter(status=InvestmentStatus.SUCCESSFUL)
+            .values("investor")
+            .distinct()
+            .count()
+        )
+
+        # پروژه‌های موفق (تکمیل‌شده)
+        successful_projects = Project.objects.filter(
+            status=ProjectStatus.COMPLETED
+        ).count()
+
+        # حجم کل تأمین مالی (مجموع raised_amount تمام پروژه‌ها)
+        total_funded = Project.objects.aggregate(
+            total=Sum("raised_amount")
+        )["total"] or 0
+
+        # میانگین نرخ سود پروژه‌های فعال
+        avg_profit_rate = (
+            Project.objects
+            .filter(
+                status__in=PUBLIC_VISIBLE_STATUSES,
+                profit_rate_percentage__isnull=False,
+            )
+            .aggregate(avg=Sum("profit_rate_percentage") / Count("id"))
+            ["avg"] or 0
+        )
+
+        # تعداد پروژه‌های در حال تأمین مالی
+        active_funding = Project.objects.filter(
+            status=ProjectStatus.FUNDING
+        ).count()
+
+        data = {
+            "total_investors": total_investors,
+            "successful_projects": successful_projects,
+            "total_funded_amount": str(total_funded),
+            "avg_profit_rate": round(float(avg_profit_rate), 1),
+            "active_funding_projects": active_funding,
+        }
+
+        return success_response(data)    
+    
+    
+    @extend_schema(
+    tags=["Projects"],
+    summary="گزارش جامع پروژه‌های صاحب طرح",
+    parameters=[
+        OpenApiParameter("date_from", OpenApiTypes.DATE, description="از تاریخ"),
+        OpenApiParameter("date_to", OpenApiTypes.DATE, description="تا تاریخ"),
+        OpenApiParameter("project_id", OpenApiTypes.UUID, description="فیلتر پروژه خاص"),
+        OpenApiParameter("report_type", OpenApiTypes.STR, description="نوع گزارش"),
+    ],
+    responses={200: None},
+    )
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="owner-reports",
+        permission_classes=[permissions.IsAuthenticated, IsEntrepreneur],
+    )
+    def owner_reports(self, request):
+        """
+        گزارش جامع برای پنل صاحب طرح:
+        - آمار کارت‌ها
+        - جدول پروژه‌ها
+        - داده نمودار وضعیت پروژه‌ها
+        - داده نمودار مقایسه‌ای
+        """
+        user = request.user
+        p = request.query_params
+
+        # فیلتر پایه
+        qs = Project.objects.filter(owner=user).prefetch_related(
+            Prefetch(
+                "investments",
+                queryset=Investment.objects.filter(
+                    status=InvestmentStatus.SUCCESSFUL
+                ).only("id", "project_id", "amount"),
+            )
+        )
+
+        # فیلتر تاریخ
+        date_from = p.get("date_from")
+        date_to = p.get("date_to")
+        if date_from:
+            try:
+                qs = qs.filter(start_date__gte=date_from)
+            except Exception:
+                pass
+        if date_to:
+            try:
+                qs = qs.filter(end_date__lte=date_to)
+            except Exception:
+                pass
+
+        # فیلتر پروژه خاص
+        project_id = p.get("project_id")
+        if project_id:
+            qs = qs.filter(id=project_id)
+
+        projects = list(qs.order_by("-created_at"))
+
+        # ── آمار کارت‌ها ────────────────────────────────────────────────────────
+        total_projects = len(projects)
+        active_count = sum(1 for proj in projects if proj.status in ACTIVE_STATUSES)
+        total_raised = sum(proj.raised_amount for proj in projects)
+        total_required = sum(proj.required_budget for proj in projects)
+
+        avg_progress = (
+            sum(float(proj.funding_percentage) for proj in projects) / total_projects
+            if total_projects > 0 else 0
+        )
+
+        # سود پرداخت‌شده
+        try:
+            from apps.profits.infrastructure.models import PayoutItem
+            total_profit_paid = PayoutItem.objects.filter(
+                period__project__owner=user,
+                status="PAID_TO_WALLET",
+            ).aggregate(total=Sum("amount"))["total"] or 0
+        except Exception:
+            total_profit_paid = 0
+
+        # ── داده جدول ────────────────────────────────────────────────────────────
+        table_data = []
+        for proj in projects:
+            table_data.append({
+                "id": str(proj.id),
+                "project_name": proj.title,
+                "start_date": proj.start_date.strftime("%Y/%m/%d") if proj.start_date else "—",
+                "target_amount": str(proj.required_budget),
+                "raised_amount": str(proj.raised_amount),
+                "progress": round(float(proj.funding_percentage), 1),
+                "status": proj.get_status_display(),
+                "status_code": proj.status,
+                "investors_count": proj.investors_count,
+                "profit_rate": str(proj.profit_rate_percentage or 0),
+            })
+
+        # ── داده نمودار وضعیت ─────────────────────────────────────────────────────
+        from collections import Counter
+        status_counts = Counter(proj.status for proj in projects)
+        status_chart = [
+            {
+                "status": k,
+                "status_display": Project(status=k).get_status_display(),
+                "count": v,
+            }
+            for k, v in status_counts.items()
+        ]
+
+        # ── داده نمودار مقایسه‌ای (raised vs target) ─────────────────────────────
+        comparison_chart = [
+            {
+                "name": proj.title[:20],
+                "target": float(proj.required_budget),
+                "raised": float(proj.raised_amount),
+                "progress": round(float(proj.funding_percentage), 1),
+            }
+            for proj in projects[:6]  # حداکثر ۶ پروژه
+        ]
+
+        data = {
+            "stats": {
+                "total_projects": total_projects,
+                "active_projects": active_count,
+                "total_raised": str(total_raised),
+                "total_required": str(total_required),
+                "avg_progress": round(avg_progress, 1),
+                "total_profit_paid": str(total_profit_paid),
+            },
+            "table": table_data,
+            "status_chart": status_chart,
+            "comparison_chart": comparison_chart,
+        }
+
+        return success_response(data)
+    
+    
+from django.db.models.functions import TruncMonth
+from django.utils import timezone
+import datetime
+
+@action(detail=False, methods=["get"], url_path="owner-monthly-stats",
+        permission_classes=[IsAuthenticated, IsProjectOwner])
+def owner_monthly_stats(self, request):
+    """
+    آمار ماهانه جذب سرمایه برای صاحب طرح
+    GET /api/v1/projects/owner-monthly-stats/
+    """
+    # ۶ ماه گذشته
+    six_months_ago = timezone.now() - datetime.timedelta(days=180)
+    
+    from apps.investments.infrastructure.models import InvestmentModel
+    
+    monthly = (
+        InvestmentModel.objects
+        .filter(
+            project__owner=request.user,
+            status="SUCCESSFUL",
+            created_at__gte=six_months_ago,
+        )
+        .annotate(month=TruncMonth("created_at"))
+        .values("month")
+        .annotate(total=Sum("amount"))
+        .order_by("month")
+    )
+
+    # نام ماه‌های فارسی
+    PERSIAN_MONTHS = {
+        1: "فروردین", 2: "اردیبهشت", 3: "خرداد",
+        4: "تیر",     5: "مرداد",    6: "شهریور",
+        7: "مهر",     8: "آبان",     9: "آذر",
+        10: "دی",     11: "بهمن",    12: "اسفند",
+    }
+
+    def to_jalali_month(dt) -> str:
+        try:
+            import jdatetime
+            jd = jdatetime.datetime.fromgregorian(datetime=dt)
+            return PERSIAN_MONTHS.get(jd.month, str(jd.month))
+        except ImportError:
+            # اگر jdatetime نصب نیست، ماه میلادی برمی‌گردانیم
+            return PERSIAN_MONTHS.get(dt.month, str(dt.month))
+
+    data = [
+        {
+            "month": to_jalali_month(item["month"]),
+            "value": float(item["total"] or 0),
+        }
+        for item in monthly
+    ]
+
+    # اگر داده‌ای نبود، ۶ ماه خالی برمیگردانیم
+    if not data:
+        now = timezone.now()
+        data = [
+            {"month": PERSIAN_MONTHS.get((now.month - i - 1) % 12 + 1, ""), "value": 0}
+            for i in range(5, -1, -1)
+        ]
+
+    return Response({"success": True, "data": data})    
