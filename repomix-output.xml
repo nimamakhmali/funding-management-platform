@@ -1071,6 +1071,7 @@ investment_platform_FrontEnd/
       images/
         img-1.png
         man.png
+    .env.local
     .gitignore
     AGENTS.md
     CLAUDE.md
@@ -41543,6 +41544,11 @@ export function cn(...inputs: ClassValue[]) {
 }
 </file>
 
+<file path="investment_platform_FrontEnd/investment_managment_project/.env.local">
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+NEXT_PUBLIC_API_URL=http://localhost:8000
+</file>
+
 <file path="investment_platform_FrontEnd/investment_managment_project/.gitignore">
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
@@ -41577,7 +41583,7 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
-.env*
+#.env*
 
 # vercel
 .vercel
