@@ -508,69 +508,68 @@ class ProjectViewSet(viewsets.ModelViewSet):
             "comparison_chart": comparison_chart,
         }
 
-        return success_response(data)
-    
-    
-from django.db.models.functions import TruncMonth
-from django.utils import timezone
-import datetime
 
-@action(detail=False, methods=["get"], url_path="owner-monthly-stats",
-        permission_classes=[IsAuthenticated, IsProjectOwner])
-def owner_monthly_stats(self, request):
-    """
-    آمار ماهانه جذب سرمایه برای صاحب طرح
-    GET /api/v1/projects/owner-monthly-stats/
-    """
-    # ۶ ماه گذشته
-    six_months_ago = timezone.now() - datetime.timedelta(days=180)
-    
-    from apps.investments.infrastructure.models import InvestmentModel
-    
-    monthly = (
-        InvestmentModel.objects
-        .filter(
-            project__owner=request.user,
-            status="SUCCESSFUL",
-            created_at__gte=six_months_ago,
-        )
-        .annotate(month=TruncMonth("created_at"))
-        .values("month")
-        .annotate(total=Sum("amount"))
-        .order_by("month")
+    @extend_schema(
+        tags=["Projects"],
+        summary="آمار ماهانه جذب سرمایه صاحب طرح",
+        responses={200: None},
     )
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="owner-monthly-stats",
+    )
+    def owner_monthly_stats(self, request):
+        from django.db.models.functions import TruncMonth
+        from django.utils import timezone
+        import datetime
 
-    # نام ماه‌های فارسی
-    PERSIAN_MONTHS = {
-        1: "فروردین", 2: "اردیبهشت", 3: "خرداد",
-        4: "تیر",     5: "مرداد",    6: "شهریور",
-        7: "مهر",     8: "آبان",     9: "آذر",
-        10: "دی",     11: "بهمن",    12: "اسفند",
-    }
-
-    def to_jalali_month(dt) -> str:
-        try:
-            import jdatetime
-            jd = jdatetime.datetime.fromgregorian(datetime=dt)
-            return PERSIAN_MONTHS.get(jd.month, str(jd.month))
-        except ImportError:
-            # اگر jdatetime نصب نیست، ماه میلادی برمی‌گردانیم
-            return PERSIAN_MONTHS.get(dt.month, str(dt.month))
-
-    data = [
-        {
-            "month": to_jalali_month(item["month"]),
-            "value": float(item["total"] or 0),
+        PERSIAN_MONTHS = {
+            1: "فروردین", 2: "اردیبهشت", 3: "خرداد",
+            4: "تیر",     5: "مرداد",    6: "شهریور",
+            7: "مهر",     8: "آبان",     9: "آذر",
+            10: "دی",     11: "بهمن",    12: "اسفند",
         }
-        for item in monthly
-    ]
 
-    # اگر داده‌ای نبود، ۶ ماه خالی برمیگردانیم
-    if not data:
-        now = timezone.now()
+        def to_jalali_month(dt):
+            try:
+                import jdatetime
+                jd = jdatetime.datetime.fromgregorian(datetime=dt)
+                return PERSIAN_MONTHS.get(jd.month, str(jd.month))
+            except ImportError:
+                return PERSIAN_MONTHS.get(dt.month, str(dt.month))
+
+        six_months_ago = timezone.now() - datetime.timedelta(days=180)
+
+        monthly = (
+            Investment.objects
+            .filter(
+                project__owner=request.user,
+                status=InvestmentStatus.SUCCESSFUL,
+                created_at__gte=six_months_ago,
+            )
+            .annotate(month=TruncMonth("created_at"))
+            .values("month")
+            .annotate(total=Sum("amount"))
+            .order_by("month")
+        )
+
         data = [
-            {"month": PERSIAN_MONTHS.get((now.month - i - 1) % 12 + 1, ""), "value": 0}
-            for i in range(5, -1, -1)
+            {
+                "month": to_jalali_month(item["month"]),
+                "value": float(item["total"] or 0),
+            }
+            for item in monthly
         ]
 
-    return Response({"success": True, "data": data})    
+        if not data:
+            now = timezone.now()
+            data = [
+                {
+                    "month": PERSIAN_MONTHS.get((now.month - i - 1) % 12 + 1, ""),
+                    "value": 0,
+                }
+                for i in range(5, -1, -1)
+            ]
+
+        return success_response(data)
