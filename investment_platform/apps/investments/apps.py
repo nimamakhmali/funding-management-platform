@@ -1,8 +1,0 @@
-from django.apps import AppConfig
-
-
-class InvestmentsConfig(AppConfig):
-    default_auto_field = "django.db.models.BigAutoField"
-    name = "apps.investments"
-    label = "investments"
-    verbose_name = "سرمایه‌گذاری و کیف پول"
