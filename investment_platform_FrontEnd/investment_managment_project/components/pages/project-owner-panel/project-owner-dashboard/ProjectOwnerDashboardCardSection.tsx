@@ -6,7 +6,7 @@ import {
 
 import ProjectOwnerDashboardCard from "./ProjectOwnerDashboardCard";
 import { useOwnerDashboard } from "@/lib/hooks/useOwnerDashboard";
-import { ProjectOwnerDashboardCards } from
+import type { ProjectOwnerDashboardCards } from
   "@/lib/types/project-owner-panel/project-owner-dashboard/projectOwnerDashboardCards";
 
 // تبدیل عدد به فرمت فارسی خوانا
