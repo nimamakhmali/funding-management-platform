@@ -7,7 +7,7 @@ import ProfitReportSwitchStatus from "./ProfitReportSwitchStatus";
 import ProfitReportTableAction from "./ProfitReportTableAction";
 import { useMyPayouts } from "@/lib/hooks/useProfitReport";
 import { InvestorPayout, PayoutStatus } from "@/lib/api/services/profit.service";
-import { TableSkeleton } from "@/components/ui/table-skeleton";
+import TableSkeleton from "@/components/ui/table-skeleton";
 
 // map وضعیت بک‌اند به فرمت فرانت
 function mapStatus(status: PayoutStatus): "pay" | "isPending" {

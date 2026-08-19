@@ -35,8 +35,6 @@ export interface OwnerDashboardData {
 }
 
 
-// اضافه به انتهای فایل - بعد از ownerDashboardService
-
 export interface OwnerReportStats {
   total_projects: number;
   active_projects: number;
@@ -77,6 +75,11 @@ export interface OwnerReportData {
   table: OwnerReportTableRow[];
   status_chart: OwnerReportChartItem[];
   comparison_chart: OwnerComparisonChartItem[];
+}
+
+export interface MonthlyChartItem {
+  month: string;
+  value: number;
 }
 
 export interface OwnerReportParams {
@@ -147,20 +150,6 @@ export const ownerDashboardService = {
     const res = await axiosInstance.get("/projects/owner-reports/", { params });
     return unwrap<OwnerReportData>(res);
   },
-
-};
-
-
-// در انتهای فایل اضافه کن
-
-export interface MonthlyChartItem {
-  month: string;
-  value: number;
-}
-
-// داخل ownerDashboardService اضافه کن:
-export const ownerDashboardService = {
-  // ... متدهای موجود ...
 
   getMonthlyStats: async (): Promise<MonthlyChartItem[]> => {
     const res = await axiosInstance.get("/projects/owner-monthly-stats/");
