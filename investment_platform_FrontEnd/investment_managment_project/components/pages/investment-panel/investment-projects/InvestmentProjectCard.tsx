@@ -115,7 +115,7 @@ export default function InvestmentProjectCardConnected({ project }: Props) {
                 پیشرفت تامین مالی
               </span>
               <span className="text-primary font-bold font-mono text-xs">
-                {toPersianNumber(progress.toFixed(1))}%
+                {toPersianNumber(Number(progress.toFixed(1)))}%
               </span>
             </div>
             <div className="w-full bg-neutral-border/50 rounded-full h-2 overflow-hidden">
