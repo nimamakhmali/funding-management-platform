@@ -54,7 +54,7 @@ type ReusableTableProps<T> = {
   isLoading?: boolean;
 };
 
-export function ReusableTable<T extends Record<string, unknown>>({
+export function ReusableTable<T extends object>({
   data,
   columns,
   title,
