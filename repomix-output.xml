@@ -309,48 +309,6 @@ investment_platform_BackEnd/
   requirements.txt
 investment_platform_FrontEnd/
   investment_managment_project/
-    .git/
-      hooks/
-        applypatch-msg.sample
-        commit-msg.sample
-        fsmonitor-watchman.sample
-        post-update.sample
-        pre-applypatch.sample
-        pre-commit.sample
-        pre-merge-commit.sample
-        pre-push.sample
-        pre-rebase.sample
-        pre-receive.sample
-        prepare-commit-msg.sample
-        push-to-checkout.sample
-        sendemail-validate.sample
-        update.sample
-      info/
-        exclude
-      logs/
-        refs/
-          heads/
-            main
-          remotes/
-            origin/
-              HEAD
-        HEAD
-      objects/
-        pack/
-          pack-2d7708cffd6e2e4fd4ed75383788878c10459adf.idx
-          pack-2d7708cffd6e2e4fd4ed75383788878c10459adf.pack
-          pack-2d7708cffd6e2e4fd4ed75383788878c10459adf.rev
-      refs/
-        heads/
-          main
-        remotes/
-          origin/
-            HEAD
-      config
-      description
-      HEAD
-      index
-      packed-refs
     .husky/
       pre-commit
     app/
@@ -1117,6 +1075,7 @@ investment_platform_FrontEnd/
     AGENTS.md
     CLAUDE.md
     components.json
+    Dockerfile
     eslint.config.mjs
     next.config.ts
     orval.config.ts
@@ -1126,6 +1085,9 @@ investment_platform_FrontEnd/
     README.md
     tsconfig.json
   .env.local
+deploy.sh
+docker-compose.yml
+nginx.conf
 README.md
 structure.md
 </directory_structure>
@@ -10273,67 +10235,57 @@ htmlcov
 </file>
 
 <file path="investment_platform_BackEnd/.env">
-# Django Core
-SECRET_KEY=your-very-secret-key-here-change-in-production
-DEBUG=True
-ALLOWED_HOSTS=localhost,127.0.0.1
+# ─── Django Core ────────────────────────────
+SECRET_KEY=your-very-long-random-secret-key-change-this-now
+DEBUG=False
+ALLOWED_HOSTS=5.198.179.184,localhost,127.0.0.1
 
-# Database
+# ─── Database ───────────────────────────────
 DB_ENGINE=postgresql
 DB_NAME=investment_platform
 DB_USER=postgres
-DB_PASSWORD=postgres
-DB_HOST=localhost
+DB_PASSWORD=StrongPassword123!
+DB_HOST=db
 DB_PORT=5432
 
-# JWT
+# ─── JWT ────────────────────────────────────
 JWT_ACCESS_MINUTES=30
 JWT_REFRESH_DAYS=7
 
-# CORS
-CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+# ─── CORS ───────────────────────────────────
+CORS_ALLOWED_ORIGINS=http://5.198.179.184
+CSRF_TRUSTED_ORIGINS=http://5.198.179.184
 
-# Throttle
+# ─── URLs ───────────────────────────────────
+FRONTEND_BASE_URL=http://5.198.179.184
+BACKEND_PUBLIC_BASE_URL=http://5.198.179.184
+
+# ─── Throttle ───────────────────────────────
 THROTTLE_ANON=100/hour
 THROTTLE_USER=1000/hour
 THROTTLE_AUTH=10/hour
-THROTTLE_OTP=5/hour
+THROTTLE_OTP_REQUEST=5/10min
+THROTTLE_OTP_VERIFY=10/10min
 
-# OTP
+# ─── OTP ────────────────────────────────────
 OTP_TTL_MINUTES=2
 OTP_MAX_ATTEMPTS=5
 OTP_RESEND_COOLDOWN_SECONDS=60
 
-# SMS
+# ─── SMS ────────────────────────────────────
 SMS_ENABLED=False
 SMS_PROVIDER=none
-SMS_KAVENEGAR_API_KEY=
-SMS_KAVENEGAR_TEMPLATE=
-SMS_FARAZSMS_BASE_URL=
-SMS_FARAZSMS_API_KEY=
-SMS_FARAZSMS_SENDER=
 
-# SEJAM (Payment Settlement)
+# ─── SEJAM ──────────────────────────────────
 SEJAM_ENABLED=False
-SEJAM_BASE_URL=
-SEJAM_API_KEY=
-SEJAM_TIMEOUT_SECONDS=20
-SEJAM_CALLBACK_SECRET=a-random-shared-secret
 
-# Localization
+# ─── Security ───────────────────────────────
+SECURE_SSL_REDIRECT=False
+FIELD_ENCRYPTION_KEY=
+
+# ─── Localization ───────────────────────────
 LANGUAGE_CODE=fa-ir
 TIME_ZONE=Asia/Tehran
-
-# --- Frontend / callback ---
-FRONTEND_BASE_URL=http://localhost:3000
-BACKEND_PUBLIC_BASE_URL=http://localhost:8000
-
-
-# --- Payment gateway sandbox flag (fallback) ---
-ZARINPAL_SANDBOX=True
-
-# --- Field encryption ---
-FIELD_ENCRYPTION_KEY=generate-with-fernet-and-put-here
 </file>
 
 <file path="investment_platform_BackEnd/.env.example">
@@ -10781,1064 +10733,9 @@ isort==5.13.2
 flake8==7.0.0
 pre-commit==3.6.0
 
-
-
 gunicorn==21.2.0
 
-
 cryptography>=42.0.0
-</file>
-
-<file path="investment_platform_FrontEnd/investment_managment_project/.git/hooks/applypatch-msg.sample">
-#!/bin/sh
-#
-# An example hook script to check the commit log message taken by
-# applypatch from an e-mail message.
-#
-# The hook should exit with non-zero status after issuing an
-# appropriate message if it wants to stop the commit.  The hook is
-# allowed to edit the commit message file.
-#
-# To enable this hook, rename this file to "applypatch-msg".
-
-. git-sh-setup
-commitmsg="$(git rev-parse --git-path hooks/commit-msg)"
-test -x "$commitmsg" && exec "$commitmsg" ${1+"$@"}
-:
-</file>
-
-<file path="investment_platform_FrontEnd/investment_managment_project/.git/hooks/commit-msg.sample">
-#!/bin/sh
-#
-# An example hook script to check the commit log message.
-# Called by "git commit" with one argument, the name of the file
-# that has the commit message.  The hook should exit with non-zero
-# status after issuing an appropriate message if it wants to stop the
-# commit.  The hook is allowed to edit the commit message file.
-#
-# To enable this hook, rename this file to "commit-msg".
-
-# Uncomment the below to add a Signed-off-by line to the message.
-# Doing this in a hook is a bad idea in general, but the prepare-commit-msg
-# hook is more suited to it.
-#
-# SOB=$(git var GIT_AUTHOR_IDENT | sed -n 's/^\(.*>\).*$/Signed-off-by: \1/p')
-# grep -qs "^$SOB" "$1" || echo "$SOB" >> "$1"
-
-# This example catches duplicate Signed-off-by lines and messages that
-# would confuse 'git am'.
-
-ret=0
-
-test "" = "$(grep '^Signed-off-by: ' "$1" |
-	 sort | uniq -c | sed -e '/^[ 	]*1[ 	]/d')" || {
-	echo >&2 Duplicate Signed-off-by lines.
-	ret=1
-}
-
-comment_re="$(
-	{
-		git config --get-regexp "^core\.comment(char|string)\$" ||
-			echo '#'
-	} | sed -n -e '
-		${
-			s/^[^ ]* //
-			s|[][*./\]|\\&|g
-			s/^auto$/[#;@!$%^&|:]/
-			p
-		}'
-)"
-scissors_line="^${comment_re} -\{8,\} >8 -\{8,\}\$"
-comment_line="^${comment_re}.*"
-blank_line='^[ 	]*$'
-# Disallow lines starting with "diff -" or "Index: " in the body of the
-# message. Stop looking if we see a scissors line.
-line="$(sed -n -e "
-	# Skip comments and blank lines at the start of the file.
-	/${scissors_line}/q
-	/${comment_line}/d
-	/${blank_line}/d
-	# The first paragraph will become the subject header so
-	# does not need to be checked.
-	: subject
-	n
-	/${scissors_line}/q
-	/${blank_line}/!b subject
-	# Check the body of the message for problematic
-	# prefixes.
-	: body
-	n
-	/${scissors_line}/q
-	/${comment_line}/b body
-	/^diff -/{p;q;}
-	/^Index: /{p;q;}
-	b body
-	" "$1")"
-if test -n "$line"
-then
-	echo >&2 "Message contains a diff that will confuse 'git am'."
-	echo >&2 "To fix this indent the diff."
-	ret=1
-fi
-
-exit $ret
-</file>
-
-<file path="investment_platform_FrontEnd/investment_managment_project/.git/hooks/fsmonitor-watchman.sample">
-#!/usr/bin/perl
-
-use strict;
-use warnings;
-use IPC::Open2;
-
-# An example hook script to integrate Watchman
-# (https://facebook.github.io/watchman/) with git to speed up detecting
-# new and modified files.
-#
-# The hook is passed a version (currently 2) and last update token
-# formatted as a string and outputs to stdout a new update token and
-# all files that have been modified since the update token. Paths must
-# be relative to the root of the working tree and separated by a single NUL.
-#
-# To enable this hook, rename this file to "query-watchman" and set
-# 'git config core.fsmonitor .git/hooks/query-watchman'
-#
-my ($version, $last_update_token) = @ARGV;
-
-# Uncomment for debugging
-# print STDERR "$0 $version $last_update_token\n";
-
-# Check the hook interface version
-if ($version ne 2) {
-	die "Unsupported query-fsmonitor hook version '$version'.\n" .
-	    "Falling back to scanning...\n";
-}
-
-my $git_work_tree = get_working_dir();
-
-my $json_pkg;
-eval {
-	require JSON::XS;
-	$json_pkg = "JSON::XS";
-	1;
-} or do {
-	require JSON::PP;
-	$json_pkg = "JSON::PP";
-};
-
-launch_watchman();
-
-sub launch_watchman {
-	my $o = watchman_query();
-	if (is_work_tree_watched($o)) {
-		output_result($o->{clock}, @{$o->{files}});
-	}
-}
-
-sub output_result {
-	my ($clockid, @files) = @_;
-
-	# Uncomment for debugging watchman output
-	# open (my $fh, ">", ".git/watchman-output.out");
-	# binmode $fh, ":utf8";
-	# print $fh "$clockid\n@files\n";
-	# close $fh;
-
-	binmode STDOUT, ":utf8";
-	print $clockid;
-	print "\0";
-	local $, = "\0";
-	print @files;
-}
-
-sub watchman_clock {
-	my $response = qx/watchman clock "$git_work_tree"/;
-	die "Failed to get clock id on '$git_work_tree'.\n" .
-		"Falling back to scanning...\n" if $? != 0;
-
-	return $json_pkg->new->utf8->decode($response);
-}
-
-sub watchman_query {
-	my $pid = open2(\*CHLD_OUT, \*CHLD_IN, 'watchman -j --no-pretty')
-	or die "open2() failed: $!\n" .
-	"Falling back to scanning...\n";
-
-	# In the query expression below we're asking for names of files that
-	# changed since $last_update_token but not from the .git folder.
-	#
-	# To accomplish this, we're using the "since" generator to use the
-	# recency index to select candidate nodes and "fields" to limit the
-	# output to file names only. Then we're using the "expression" term to
-	# further constrain the results.
-	my $last_update_line = "";
-	if (substr($last_update_token, 0, 1) eq "c") {
-		$last_update_token = "\"$last_update_token\"";
-		$last_update_line = qq[\n"since": $last_update_token,];
-	}
-	my $query = <<"	END";
-		["query", "$git_work_tree", {$last_update_line
-			"fields": ["name"],
-			"expression": ["not", ["dirname", ".git"]]
-		}]
-	END
-
-	# Uncomment for debugging the watchman query
-	# open (my $fh, ">", ".git/watchman-query.json");
-	# print $fh $query;
-	# close $fh;
-
-	print CHLD_IN $query;
-	close CHLD_IN;
-	my $response = do {local $/; <CHLD_OUT>};
-
-	# Uncomment for debugging the watch response
-	# open ($fh, ">", ".git/watchman-response.json");
-	# print $fh $response;
-	# close $fh;
-
-	die "Watchman: command returned no output.\n" .
-	"Falling back to scanning...\n" if $response eq "";
-	die "Watchman: command returned invalid output: $response\n" .
-	"Falling back to scanning...\n" unless $response =~ /^\{/;
-
-	return $json_pkg->new->utf8->decode($response);
-}
-
-sub is_work_tree_watched {
-	my ($output) = @_;
-	my $error = $output->{error};
-	if ($error and $error =~ m/unable to resolve root .* directory (.*) is not watched/) {
-		my $response = qx/watchman watch "$git_work_tree"/;
-		die "Failed to make watchman watch '$git_work_tree'.\n" .
-		    "Falling back to scanning...\n" if $? != 0;
-		$output = $json_pkg->new->utf8->decode($response);
-		$error = $output->{error};
-		die "Watchman: $error.\n" .
-		"Falling back to scanning...\n" if $error;
-
-		# Uncomment for debugging watchman output
-		# open (my $fh, ">", ".git/watchman-output.out");
-		# close $fh;
-
-		# Watchman will always return all files on the first query so
-		# return the fast "everything is dirty" flag to git and do the
-		# Watchman query just to get it over with now so we won't pay
-		# the cost in git to look up each individual file.
-		my $o = watchman_clock();
-		$error = $o->{error};
-
-		die "Watchman: $error.\n" .
-		"Falling back to scanning...\n" if $error;
-
-		output_result($o->{clock}, ("/"));
-		return 0;
-	}
-
-	die "Watchman: $error.\n" .
-	"Falling back to scanning...\n" if $error;
-
-	return 1;
-}
-
-sub get_working_dir {
-	my $working_dir;
-	if ($^O =~ 'msys' || $^O =~ 'cygwin') {
-		$working_dir = Win32::GetCwd();
-		$working_dir =~ tr/\\/\//;
-	} else {
-		require Cwd;
-		$working_dir = Cwd::cwd();
-	}
-
-	return $working_dir;
-}
-</file>
-
-<file path="investment_platform_FrontEnd/investment_managment_project/.git/hooks/post-update.sample">
-#!/bin/sh
-#
-# An example hook script to prepare a packed repository for use over
-# dumb transports.
-#
-# To enable this hook, rename this file to "post-update".
-
-exec git update-server-info
-</file>
-
-<file path="investment_platform_FrontEnd/investment_managment_project/.git/hooks/pre-applypatch.sample">
-#!/bin/sh
-#
-# An example hook script to verify what is about to be committed
-# by applypatch from an e-mail message.
-#
-# The hook should exit with non-zero status after issuing an
-# appropriate message if it wants to stop the commit.
-#
-# To enable this hook, rename this file to "pre-applypatch".
-
-. git-sh-setup
-precommit="$(git rev-parse --git-path hooks/pre-commit)"
-test -x "$precommit" && exec "$precommit" ${1+"$@"}
-:
-</file>
-
-<file path="investment_platform_FrontEnd/investment_managment_project/.git/hooks/pre-commit.sample">
-#!/bin/sh
-#
-# An example hook script to verify what is about to be committed.
-# Called by "git commit" with no arguments.  The hook should
-# exit with non-zero status after issuing an appropriate message if
-# it wants to stop the commit.
-#
-# To enable this hook, rename this file to "pre-commit".
-
-if git rev-parse --verify HEAD >/dev/null 2>&1
-then
-	against=HEAD
-else
-	# Initial commit: diff against an empty tree object
-	against=$(git hash-object -t tree /dev/null)
-fi
-
-# If you want to allow non-ASCII filenames set this variable to true.
-allownonascii=$(git config --type=bool hooks.allownonascii)
-
-# Redirect output to stderr.
-exec 1>&2
-
-# Cross platform projects tend to avoid non-ASCII filenames; prevent
-# them from being added to the repository. We exploit the fact that the
-# printable range starts at the space character and ends with tilde.
-if [ "$allownonascii" != "true" ] &&
-	# Note that the use of brackets around a tr range is ok here, (it's
-	# even required, for portability to Solaris 10's /usr/bin/tr), since
-	# the square bracket bytes happen to fall in the designated range.
-	test $(git diff-index --cached --name-only --diff-filter=A -z $against |
-	  LC_ALL=C tr -d '[ -~]\0' | wc -c) != 0
-then
-	cat <<\EOF
-Error: Attempt to add a non-ASCII file name.
-
-This can cause problems if you want to work with people on other platforms.
-
-To be portable it is advisable to rename the file.
-
-If you know what you are doing you can disable this check using:
-
-  git config hooks.allownonascii true
-EOF
-	exit 1
-fi
-
-# If there are whitespace errors, print the offending file names and fail.
-exec git diff-index --check --cached $against --
-</file>
-
-<file path="investment_platform_FrontEnd/investment_managment_project/.git/hooks/pre-merge-commit.sample">
-#!/bin/sh
-#
-# An example hook script to verify what is about to be committed.
-# Called by "git merge" with no arguments.  The hook should
-# exit with non-zero status after issuing an appropriate message to
-# stderr if it wants to stop the merge commit.
-#
-# To enable this hook, rename this file to "pre-merge-commit".
-
-. git-sh-setup
-test -x "$GIT_DIR/hooks/pre-commit" &&
-        exec "$GIT_DIR/hooks/pre-commit"
-:
-</file>
-
-<file path="investment_platform_FrontEnd/investment_managment_project/.git/hooks/pre-push.sample">
-#!/bin/sh
-
-# An example hook script to verify what is about to be pushed.  Called by "git
-# push" after it has checked the remote status, but before anything has been
-# pushed.  If this script exits with a non-zero status nothing will be pushed.
-#
-# This hook is called with the following parameters:
-#
-# $1 -- Name of the remote to which the push is being done
-# $2 -- URL to which the push is being done
-#
-# If pushing without using a named remote those arguments will be equal.
-#
-# Information about the commits which are being pushed is supplied as lines to
-# the standard input in the form:
-#
-#   <local ref> <local oid> <remote ref> <remote oid>
-#
-# This sample shows how to prevent push of commits where the log message starts
-# with "WIP" (work in progress).
-
-remote="$1"
-url="$2"
-
-zero=$(git hash-object --stdin </dev/null | tr '[0-9a-f]' '0')
-
-while read local_ref local_oid remote_ref remote_oid
-do
-	if test "$local_oid" = "$zero"
-	then
-		# Handle delete
-		:
-	else
-		if test "$remote_oid" = "$zero"
-		then
-			# New branch, examine all commits
-			range="$local_oid"
-		else
-			# Update to existing branch, examine new commits
-			range="$remote_oid..$local_oid"
-		fi
-
-		# Check for WIP commit
-		commit=$(git rev-list -n 1 --grep '^WIP' "$range")
-		if test -n "$commit"
-		then
-			echo >&2 "Found WIP commit in $local_ref, not pushing"
-			exit 1
-		fi
-	fi
-done
-
-exit 0
-</file>
-
-<file path="investment_platform_FrontEnd/investment_managment_project/.git/hooks/pre-rebase.sample">
-#!/bin/sh
-#
-# Copyright (c) 2006, 2008 Junio C Hamano
-#
-# The "pre-rebase" hook is run just before "git rebase" starts doing
-# its job, and can prevent the command from running by exiting with
-# non-zero status.
-#
-# The hook is called with the following parameters:
-#
-# $1 -- the upstream the series was forked from.
-# $2 -- the branch being rebased (or empty when rebasing the current branch).
-#
-# This sample shows how to prevent topic branches that are already
-# merged to 'next' branch from getting rebased, because allowing it
-# would result in rebasing already published history.
-
-publish=next
-basebranch="$1"
-if test "$#" = 2
-then
-	topic="refs/heads/$2"
-else
-	topic=`git symbolic-ref HEAD` ||
-	exit 0 ;# we do not interrupt rebasing detached HEAD
-fi
-
-case "$topic" in
-refs/heads/??/*)
-	;;
-*)
-	exit 0 ;# we do not interrupt others.
-	;;
-esac
-
-# Now we are dealing with a topic branch being rebased
-# on top of master.  Is it OK to rebase it?
-
-# Does the topic really exist?
-git show-ref -q "$topic" || {
-	echo >&2 "No such branch $topic"
-	exit 1
-}
-
-# Is topic fully merged to master?
-not_in_master=`git rev-list --pretty=oneline ^master "$topic"`
-if test -z "$not_in_master"
-then
-	echo >&2 "$topic is fully merged to master; better remove it."
-	exit 1 ;# we could allow it, but there is no point.
-fi
-
-# Is topic ever merged to next?  If so you should not be rebasing it.
-only_next_1=`git rev-list ^master "^$topic" ${publish} | sort`
-only_next_2=`git rev-list ^master           ${publish} | sort`
-if test "$only_next_1" = "$only_next_2"
-then
-	not_in_topic=`git rev-list "^$topic" master`
-	if test -z "$not_in_topic"
-	then
-		echo >&2 "$topic is already up to date with master"
-		exit 1 ;# we could allow it, but there is no point.
-	else
-		exit 0
-	fi
-else
-	not_in_next=`git rev-list --pretty=oneline ^${publish} "$topic"`
-	/usr/bin/perl -e '
-		my $topic = $ARGV[0];
-		my $msg = "* $topic has commits already merged to public branch:\n";
-		my (%not_in_next) = map {
-			/^([0-9a-f]+) /;
-			($1 => 1);
-		} split(/\n/, $ARGV[1]);
-		for my $elem (map {
-				/^([0-9a-f]+) (.*)$/;
-				[$1 => $2];
-			} split(/\n/, $ARGV[2])) {
-			if (!exists $not_in_next{$elem->[0]}) {
-				if ($msg) {
-					print STDERR $msg;
-					undef $msg;
-				}
-				print STDERR " $elem->[1]\n";
-			}
-		}
-	' "$topic" "$not_in_next" "$not_in_master"
-	exit 1
-fi
-
-<<\DOC_END
-
-This sample hook safeguards topic branches that have been
-published from being rewound.
-
-The workflow assumed here is:
-
- * Once a topic branch forks from "master", "master" is never
-   merged into it again (either directly or indirectly).
-
- * Once a topic branch is fully cooked and merged into "master",
-   it is deleted.  If you need to build on top of it to correct
-   earlier mistakes, a new topic branch is created by forking at
-   the tip of the "master".  This is not strictly necessary, but
-   it makes it easier to keep your history simple.
-
- * Whenever you need to test or publish your changes to topic
-   branches, merge them into "next" branch.
-
-The script, being an example, hardcodes the publish branch name
-to be "next", but it is trivial to make it configurable via
-$GIT_DIR/config mechanism.
-
-With this workflow, you would want to know:
-
-(1) ... if a topic branch has ever been merged to "next".  Young
-    topic branches can have stupid mistakes you would rather
-    clean up before publishing, and things that have not been
-    merged into other branches can be easily rebased without
-    affecting other people.  But once it is published, you would
-    not want to rewind it.
-
-(2) ... if a topic branch has been fully merged to "master".
-    Then you can delete it.  More importantly, you should not
-    build on top of it -- other people may already want to
-    change things related to the topic as patches against your
-    "master", so if you need further changes, it is better to
-    fork the topic (perhaps with the same name) afresh from the
-    tip of "master".
-
-Let's look at this example:
-
-		   o---o---o---o---o---o---o---o---o---o "next"
-		  /       /           /           /
-		 /   a---a---b A     /           /
-		/   /               /           /
-	       /   /   c---c---c---c B         /
-	      /   /   /             \         /
-	     /   /   /   b---b C     \       /
-	    /   /   /   /             \     /
-    ---o---o---o---o---o---o---o---o---o---o---o "master"
-
-
-A, B and C are topic branches.
-
- * A has one fix since it was merged up to "next".
-
- * B has finished.  It has been fully merged up to "master" and "next",
-   and is ready to be deleted.
-
- * C has not merged to "next" at all.
-
-We would want to allow C to be rebased, refuse A, and encourage
-B to be deleted.
-
-To compute (1):
-
-	git rev-list ^master ^topic next
-	git rev-list ^master        next
-
-	if these match, topic has not merged in next at all.
-
-To compute (2):
-
-	git rev-list master..topic
-
-	if this is empty, it is fully merged to "master".
-
-DOC_END
-</file>
-
-<file path="investment_platform_FrontEnd/investment_managment_project/.git/hooks/pre-receive.sample">
-#!/bin/sh
-#
-# An example hook script to make use of push options.
-# The example simply echoes all push options that start with 'echoback='
-# and rejects all pushes when the "reject" push option is used.
-#
-# To enable this hook, rename this file to "pre-receive".
-
-if test -n "$GIT_PUSH_OPTION_COUNT"
-then
-	i=0
-	while test "$i" -lt "$GIT_PUSH_OPTION_COUNT"
-	do
-		eval "value=\$GIT_PUSH_OPTION_$i"
-		case "$value" in
-		echoback=*)
-			echo "echo from the pre-receive-hook: ${value#*=}" >&2
-			;;
-		reject)
-			exit 1
-		esac
-		i=$((i + 1))
-	done
-fi
-</file>
-
-<file path="investment_platform_FrontEnd/investment_managment_project/.git/hooks/prepare-commit-msg.sample">
-#!/bin/sh
-#
-# An example hook script to prepare the commit log message.
-# Called by "git commit" with the name of the file that has the
-# commit message, followed by the description of the commit
-# message's source.  The hook's purpose is to edit the commit
-# message file.  If the hook fails with a non-zero status,
-# the commit is aborted.
-#
-# To enable this hook, rename this file to "prepare-commit-msg".
-
-# This hook includes three examples. The first one removes the
-# "# Please enter the commit message..." help message.
-#
-# The second includes the output of "git diff --name-status -r"
-# into the message, just before the "git status" output.  It is
-# commented because it doesn't cope with --amend or with squashed
-# commits.
-#
-# The third example adds a Signed-off-by line to the message, that can
-# still be edited.  This is rarely a good idea.
-
-COMMIT_MSG_FILE=$1
-COMMIT_SOURCE=$2
-SHA1=$3
-
-/usr/bin/perl -i.bak -ne 'print unless(m/^. Please enter the commit message/..m/^#$/)' "$COMMIT_MSG_FILE"
-
-# case "$COMMIT_SOURCE,$SHA1" in
-#  ,|template,)
-#    /usr/bin/perl -i.bak -pe '
-#       print "\n" . `git diff --cached --name-status -r`
-# 	 if /^#/ && $first++ == 0' "$COMMIT_MSG_FILE" ;;
-#  *) ;;
-# esac
-
-# SOB=$(git var GIT_COMMITTER_IDENT | sed -n 's/^\(.*>\).*$/Signed-off-by: \1/p')
-# git interpret-trailers --in-place --trailer "$SOB" "$COMMIT_MSG_FILE"
-# if test -z "$COMMIT_SOURCE"
-# then
-#   /usr/bin/perl -i.bak -pe 'print "\n" if !$first_line++' "$COMMIT_MSG_FILE"
-# fi
-</file>
-
-<file path="investment_platform_FrontEnd/investment_managment_project/.git/hooks/push-to-checkout.sample">
-#!/bin/sh
-
-# An example hook script to update a checked-out tree on a git push.
-#
-# This hook is invoked by git-receive-pack(1) when it reacts to git
-# push and updates reference(s) in its repository, and when the push
-# tries to update the branch that is currently checked out and the
-# receive.denyCurrentBranch configuration variable is set to
-# updateInstead.
-#
-# By default, such a push is refused if the working tree and the index
-# of the remote repository has any difference from the currently
-# checked out commit; when both the working tree and the index match
-# the current commit, they are updated to match the newly pushed tip
-# of the branch. This hook is to be used to override the default
-# behaviour; however the code below reimplements the default behaviour
-# as a starting point for convenient modification.
-#
-# The hook receives the commit with which the tip of the current
-# branch is going to be updated:
-commit=$1
-
-# It can exit with a non-zero status to refuse the push (when it does
-# so, it must not modify the index or the working tree).
-die () {
-	echo >&2 "$*"
-	exit 1
-}
-
-# Or it can make any necessary changes to the working tree and to the
-# index to bring them to the desired state when the tip of the current
-# branch is updated to the new commit, and exit with a zero status.
-#
-# For example, the hook can simply run git read-tree -u -m HEAD "$1"
-# in order to emulate git fetch that is run in the reverse direction
-# with git push, as the two-tree form of git read-tree -u -m is
-# essentially the same as git switch or git checkout that switches
-# branches while keeping the local changes in the working tree that do
-# not interfere with the difference between the branches.
-
-# The below is a more-or-less exact translation to shell of the C code
-# for the default behaviour for git's push-to-checkout hook defined in
-# the push_to_deploy() function in builtin/receive-pack.c.
-#
-# Note that the hook will be executed from the repository directory,
-# not from the working tree, so if you want to perform operations on
-# the working tree, you will have to adapt your code accordingly, e.g.
-# by adding "cd .." or using relative paths.
-
-if ! git update-index -q --ignore-submodules --refresh
-then
-	die "Up-to-date check failed"
-fi
-
-if ! git diff-files --quiet --ignore-submodules --
-then
-	die "Working directory has unstaged changes"
-fi
-
-# This is a rough translation of:
-#
-#   head_has_history() ? "HEAD" : EMPTY_TREE_SHA1_HEX
-if git cat-file -e HEAD 2>/dev/null
-then
-	head=HEAD
-else
-	head=$(git hash-object -t tree --stdin </dev/null)
-fi
-
-if ! git diff-index --quiet --cached --ignore-submodules $head --
-then
-	die "Working directory has staged changes"
-fi
-
-if ! git read-tree -u -m "$commit"
-then
-	die "Could not update working tree to new HEAD"
-fi
-</file>
-
-<file path="investment_platform_FrontEnd/investment_managment_project/.git/hooks/sendemail-validate.sample">
-#!/bin/sh
-
-# An example hook script to validate a patch (and/or patch series) before
-# sending it via email.
-#
-# The hook should exit with non-zero status after issuing an appropriate
-# message if it wants to prevent the email(s) from being sent.
-#
-# To enable this hook, rename this file to "sendemail-validate".
-#
-# By default, it will only check that the patch(es) can be applied on top of
-# the default upstream branch without conflicts in a secondary worktree. After
-# validation (successful or not) of the last patch of a series, the worktree
-# will be deleted.
-#
-# The following config variables can be set to change the default remote and
-# remote ref that are used to apply the patches against:
-#
-#   sendemail.validateRemote (default: origin)
-#   sendemail.validateRemoteRef (default: HEAD)
-#
-# Replace the TODO placeholders with appropriate checks according to your
-# needs.
-
-validate_cover_letter () {
-	file="$1"
-	# TODO: Replace with appropriate checks (e.g. spell checking).
-	true
-}
-
-validate_patch () {
-	file="$1"
-	# Ensure that the patch applies without conflicts.
-	git am -3 "$file" || return
-	# TODO: Replace with appropriate checks for this patch
-	# (e.g. checkpatch.pl).
-	true
-}
-
-validate_series () {
-	# TODO: Replace with appropriate checks for the whole series
-	# (e.g. quick build, coding style checks, etc.).
-	true
-}
-
-# main -------------------------------------------------------------------------
-
-if test "$GIT_SENDEMAIL_FILE_COUNTER" = 1
-then
-	remote=$(git config --default origin --get sendemail.validateRemote) &&
-	ref=$(git config --default HEAD --get sendemail.validateRemoteRef) &&
-	worktree=$(mktemp --tmpdir -d sendemail-validate.XXXXXXX) &&
-	git worktree add -fd --checkout "$worktree" "refs/remotes/$remote/$ref" &&
-	git config --replace-all sendemail.validateWorktree "$worktree"
-else
-	worktree=$(git config --get sendemail.validateWorktree)
-fi || {
-	echo "sendemail-validate: error: failed to prepare worktree" >&2
-	exit 1
-}
-
-unset GIT_DIR GIT_WORK_TREE
-cd "$worktree" &&
-
-if grep -q "^diff --git " "$1"
-then
-	validate_patch "$1"
-else
-	validate_cover_letter "$1"
-fi &&
-
-if test "$GIT_SENDEMAIL_FILE_COUNTER" = "$GIT_SENDEMAIL_FILE_TOTAL"
-then
-	git config --unset-all sendemail.validateWorktree &&
-	trap 'git worktree remove -ff "$worktree"' EXIT &&
-	validate_series
-fi
-</file>
-
-<file path="investment_platform_FrontEnd/investment_managment_project/.git/hooks/update.sample">
-#!/bin/sh
-#
-# An example hook script to block unannotated tags from entering.
-# Called by "git receive-pack" with arguments: refname sha1-old sha1-new
-#
-# To enable this hook, rename this file to "update".
-#
-# Config
-# ------
-# hooks.allowunannotated
-#   This boolean sets whether unannotated tags will be allowed into the
-#   repository.  By default they won't be.
-# hooks.allowdeletetag
-#   This boolean sets whether deleting tags will be allowed in the
-#   repository.  By default they won't be.
-# hooks.allowmodifytag
-#   This boolean sets whether a tag may be modified after creation. By default
-#   it won't be.
-# hooks.allowdeletebranch
-#   This boolean sets whether deleting branches will be allowed in the
-#   repository.  By default they won't be.
-# hooks.denycreatebranch
-#   This boolean sets whether remotely creating branches will be denied
-#   in the repository.  By default this is allowed.
-#
-
-# --- Command line
-refname="$1"
-oldrev="$2"
-newrev="$3"
-
-# --- Safety check
-if [ -z "$GIT_DIR" ]; then
-	echo "Don't run this script from the command line." >&2
-	echo " (if you want, you could supply GIT_DIR then run" >&2
-	echo "  $0 <ref> <oldrev> <newrev>)" >&2
-	exit 1
-fi
-
-if [ -z "$refname" -o -z "$oldrev" -o -z "$newrev" ]; then
-	echo "usage: $0 <ref> <oldrev> <newrev>" >&2
-	exit 1
-fi
-
-# --- Config
-allowunannotated=$(git config --type=bool hooks.allowunannotated)
-allowdeletebranch=$(git config --type=bool hooks.allowdeletebranch)
-denycreatebranch=$(git config --type=bool hooks.denycreatebranch)
-allowdeletetag=$(git config --type=bool hooks.allowdeletetag)
-allowmodifytag=$(git config --type=bool hooks.allowmodifytag)
-
-# check for no description
-projectdesc=$(sed -e '1q' "$GIT_DIR/description")
-case "$projectdesc" in
-"Unnamed repository"* | "")
-	echo "*** Project description file hasn't been set" >&2
-	exit 1
-	;;
-esac
-
-# --- Check types
-# if $newrev is 0000...0000, it's a commit to delete a ref.
-zero=$(git hash-object --stdin </dev/null | tr '[0-9a-f]' '0')
-if [ "$newrev" = "$zero" ]; then
-	newrev_type=delete
-else
-	newrev_type=$(git cat-file -t $newrev)
-fi
-
-case "$refname","$newrev_type" in
-	refs/tags/*,commit)
-		# un-annotated tag
-		short_refname=${refname##refs/tags/}
-		if [ "$allowunannotated" != "true" ]; then
-			echo "*** The un-annotated tag, $short_refname, is not allowed in this repository" >&2
-			echo "*** Use 'git tag [ -a | -s ]' for tags you want to propagate." >&2
-			exit 1
-		fi
-		;;
-	refs/tags/*,delete)
-		# delete tag
-		if [ "$allowdeletetag" != "true" ]; then
-			echo "*** Deleting a tag is not allowed in this repository" >&2
-			exit 1
-		fi
-		;;
-	refs/tags/*,tag)
-		# annotated tag
-		if [ "$allowmodifytag" != "true" ] && git rev-parse $refname > /dev/null 2>&1
-		then
-			echo "*** Tag '$refname' already exists." >&2
-			echo "*** Modifying a tag is not allowed in this repository." >&2
-			exit 1
-		fi
-		;;
-	refs/heads/*,commit)
-		# branch
-		if [ "$oldrev" = "$zero" -a "$denycreatebranch" = "true" ]; then
-			echo "*** Creating a branch is not allowed in this repository" >&2
-			exit 1
-		fi
-		;;
-	refs/heads/*,delete)
-		# delete branch
-		if [ "$allowdeletebranch" != "true" ]; then
-			echo "*** Deleting a branch is not allowed in this repository" >&2
-			exit 1
-		fi
-		;;
-	refs/remotes/*,commit)
-		# tracking branch
-		;;
-	refs/remotes/*,delete)
-		# delete tracking branch
-		if [ "$allowdeletebranch" != "true" ]; then
-			echo "*** Deleting a tracking branch is not allowed in this repository" >&2
-			exit 1
-		fi
-		;;
-	*)
-		# Anything else (is there anything else?)
-		echo "*** Update hook: unknown type of update to ref $refname of type $newrev_type" >&2
-		exit 1
-		;;
-esac
-
-# --- Finished
-exit 0
-</file>
-
-<file path="investment_platform_FrontEnd/investment_managment_project/.git/info/exclude">
-# git ls-files --others --exclude-from=.git/info/exclude
-# Lines that start with '#' are comments.
-# For a project mostly in C, the following would be a good set of
-# exclude patterns (uncomment them if you want to use them):
-# *.[oa]
-# *~
-</file>
-
-<file path="investment_platform_FrontEnd/investment_managment_project/.git/logs/refs/heads/main">
-0000000000000000000000000000000000000000 76406a6fcebd1d1a9e84c3e18793a4734760e800 nimamakhmali <nmkhmly790@gmail.com> 1785614177 +0330	clone: from https://github.com/Yeganeh-karimi/investment_managment_project.git
-</file>
-
-<file path="investment_platform_FrontEnd/investment_managment_project/.git/logs/refs/remotes/origin/HEAD">
-0000000000000000000000000000000000000000 76406a6fcebd1d1a9e84c3e18793a4734760e800 nimamakhmali <nmkhmly790@gmail.com> 1785614177 +0330	clone: from https://github.com/Yeganeh-karimi/investment_managment_project.git
-</file>
-
-<file path="investment_platform_FrontEnd/investment_managment_project/.git/logs/HEAD">
-0000000000000000000000000000000000000000 76406a6fcebd1d1a9e84c3e18793a4734760e800 nimamakhmali <nmkhmly790@gmail.com> 1785614177 +0330	clone: from https://github.com/Yeganeh-karimi/investment_managment_project.git
-</file>
-
-<file path="investment_platform_FrontEnd/investment_managment_project/.git/refs/heads/main">
-76406a6fcebd1d1a9e84c3e18793a4734760e800
-</file>
-
-<file path="investment_platform_FrontEnd/investment_managment_project/.git/refs/remotes/origin/HEAD">
-ref: refs/remotes/origin/main
-</file>
-
-<file path="investment_platform_FrontEnd/investment_managment_project/.git/config">
-[core]
-	repositoryformatversion = 0
-	filemode = true
-	bare = false
-	logallrefupdates = true
-	hooksPath = .husky/_
-[remote "origin"]
-	url = https://github.com/Yeganeh-karimi/investment_managment_project.git
-	fetch = +refs/heads/*:refs/remotes/origin/*
-[branch "main"]
-	remote = origin
-	merge = refs/heads/main
-</file>
-
-<file path="investment_platform_FrontEnd/investment_managment_project/.git/description">
-Unnamed repository; edit this file 'description' to name the repository.
-</file>
-
-<file path="investment_platform_FrontEnd/investment_managment_project/.git/HEAD">
-ref: refs/heads/main
-</file>
-
-<file path="investment_platform_FrontEnd/investment_managment_project/.git/packed-refs">
-# pack-refs with: peeled fully-peeled sorted 
-717ea833b31f4844021e0e9f6e381e17675f7a39 refs/remotes/origin/admin-profit-management
-b40d84bca4f3591f9a9806eb6d650e2d88772734 refs/remotes/origin/chore/small-fixes
-97ba053ff9fe08cc37c4f2eb5a133b45af020d12 refs/remotes/origin/complete-user-information
-437384b41bf3a2ef338baa79ef2d7212647e53de refs/remotes/origin/develop
-d52ac38299872aaa26686bfdcfc52e80bf77b90f refs/remotes/origin/feat/about-us
-54834bfa28f935c3ad7611385f3503aada385d30 refs/remotes/origin/feat/admin
-f657e3a7ccdd2bc4c5c188f4c1be7a3aca072986 refs/remotes/origin/feat/admin-dashboard
-e9c3f53a494e9715310b16b5d6bfa3c1afb62e28 refs/remotes/origin/feat/admin-messages-parallel-route
-59d07f61efab352b1f16ed1dca7e53bbe65704e9 refs/remotes/origin/feat/admin-settings
-3b5b6b0b8490cf6a2a5390ef1a680b98abd27d9f refs/remotes/origin/feat/admin-system-activity-report
-be582cb71468cc8c46a0f2b76175784eb316fd70 refs/remotes/origin/feat/admin-ticket-management
-405619dec148b504740ad7ee9acfc62e7afabceb refs/remotes/origin/feat/admin-transaction-management
-c1dedf22d55cd01faf571ec7f1594327cb4ed92b refs/remotes/origin/feat/admin-user-management
-f455f57cbdbe65673144173068c2298b6dff4ff0 refs/remotes/origin/feat/contact-us
-1fe2d845f24bc1ad152e798a3070a1f93ea82b02 refs/remotes/origin/feat/customizeColors
-f83a0b7d6eaa5f2141b60dd3036d3648c7a4a49a refs/remotes/origin/feat/dashboard-navigation
-1d54c70741205f0d34731f7ee67f69b619a8618a refs/remotes/origin/feat/font
-4eb7a26a442325cb20519178d000b4a924b1e69c refs/remotes/origin/feat/home-page
-6d0f0c16b4741649afe75bf2a88d5edeee7135ad refs/remotes/origin/feat/investmentProjects
-e55b320ef7925fb6c21b718d539ddbd103eae839 refs/remotes/origin/feat/investor-dashboard
-8fe78610c6c30cc6ba4843bc7766e2a6bcf9ab5c refs/remotes/origin/feat/login
-d431f6ed460d00be8e701ae20cc1fdb2e4f8fcc7 refs/remotes/origin/feat/main
-8b2d3e57f1982835f5892dae6efd1225ad4fc535 refs/remotes/origin/feat/navigation
-4d87a86e951cdf4db6245011c4aeecfaef916521 refs/remotes/origin/feat/notifications
-609f85e0b7f038560e3310b516119895b77d11b9 refs/remotes/origin/feat/panelLayout
-cf3c86c12efab3061e0468603376f5cfe9e6c8a9 refs/remotes/origin/feat/payment-result
-41b5d211de98131866e633cb406b6362ba222019 refs/remotes/origin/feat/picture
-5b4f044ed8476a59426a5fd29f5e2c4dfe3f47fb refs/remotes/origin/feat/profite-report-ui
-53af540d301183fa78c5dfa7c528d95977e603f7 refs/remotes/origin/feat/project-details
-f75e6cc98e3293f1a8e1b2aa776bd9c473009fdc refs/remotes/origin/feat/project-owner
-6acf4d712ecfa53159941cd6b68fae169a932ee3 refs/remotes/origin/feat/project-owner-dashboard
-dd0cb454e1b72939ff4d9ce046977bef5a6d1662 refs/remotes/origin/feat/projects
-624885b0c6d309982a0840227a25e93440722566 refs/remotes/origin/feat/report
-1d54c70741205f0d34731f7ee67f69b619a8618a refs/remotes/origin/feat/shadcn
-f51db6b679fd0b1312a7604add550ace0aad689e refs/remotes/origin/feat/sing-up
-7815b79ba5db9aa0c746eee64a47dc7c74987b62 refs/remotes/origin/feat/skeleton
-576df4bffed9236ef8b04cf0f5c5195eb7991393 refs/remotes/origin/feat/skeleton-fixed
-a4253fced04e30fe0e9a726cf22f538e6225583b refs/remotes/origin/feat/ui
-8938937485fd8d713393e1717b37632b84a07efe refs/remotes/origin/feat/useQueryParams
-4a83ec23e9561d8c1b512dc3c85a20757d014c79 refs/remotes/origin/feat/web-header
-9ab76ea0c15aab58e896eaf34409e0a6a3181cdf refs/remotes/origin/fix/develop-conflict
-76406a6fcebd1d1a9e84c3e18793a4734760e800 refs/remotes/origin/main
 </file>
 
 <file path="investment_platform_FrontEnd/investment_managment_project/.husky/pre-commit">
@@ -43334,6 +42231,66 @@ Before finishing check:
 }
 </file>
 
+<file path="investment_platform_FrontEnd/investment_managment_project/Dockerfile">
+# ─── Stage 1: Dependencies ───────────────────────────────
+FROM node:20-alpine AS deps
+
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+
+# نصب pnpm
+RUN npm install -g pnpm
+
+COPY package.json pnpm-lock.yaml* ./
+
+RUN pnpm install --frozen-lockfile
+
+# ─── Stage 2: Build ──────────────────────────────────────
+FROM node:20-alpine AS builder
+
+RUN npm install -g pnpm
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# متغیرهای build-time
+ARG NEXT_PUBLIC_API_BASE_URL=http://5.198.179.184
+ARG NEXT_PUBLIC_API_URL=http://5.198.179.184
+
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NODE_ENV=production
+
+RUN pnpm build
+
+# ─── Stage 3: Runner ─────────────────────────────────────
+FROM node:20-alpine AS runner
+
+RUN npm install -g pnpm
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# کاربر غیر root برای امنیت
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+# کپی فایل‌های build شده
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
+
+EXPOSE 3000
+
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+CMD ["node", "server.js"]
+</file>
+
 <file path="investment_platform_FrontEnd/investment_managment_project/eslint.config.mjs">
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
@@ -43361,10 +42318,26 @@ export default eslintConfig;
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   turbopack: {
     root: __dirname,
   },
-  // ... بقیه تنظیمات موجود
+  // اجازه دسترسی به API بک‌اند از Next.js
+  async rewrites() {
+    return [];
+  },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "http",
+        hostname: "5.198.179.184",
+      },
+      {
+        protocol: "http",
+        hostname: "localhost",
+      },
+    ],
+  },
 };
 
 export default nextConfig;
@@ -43614,6 +42587,325 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 <file path="investment_platform_FrontEnd/.env.local">
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 NEXT_PUBLIC_API_URL=http://localhost:8000
+</file>
+
+<file path="deploy.sh">
+#!/bin/bash
+set -e
+
+# ─── رنگ‌ها برای خروجی ──────────────────────────────────
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+log_info()    { echo -e "${BLUE}[INFO]${NC} $1"; }
+log_success() { echo -e "${GREEN}[OK]${NC} $1"; }
+log_warn()    { echo -e "${YELLOW}[WARN]${NC} $1"; }
+log_error()   { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
+
+# ─── بررسی پیش‌نیازها ───────────────────────────────────
+log_info "بررسی پیش‌نیازها..."
+command -v docker        || log_error "Docker نصب نیست!"
+command -v docker-compose || command -v docker compose || log_error "Docker Compose نصب نیست!"
+log_success "پیش‌نیازها تأیید شد"
+
+# ─── بررسی فایل .env ─────────────────────────────────────
+if [ ! -f "./investment_platform_BackEnd/.env" ]; then
+    log_warn "فایل .env بک‌اند پیدا نشد، از example کپی می‌شود"
+    cp ./investment_platform_BackEnd/.env.example \
+       ./investment_platform_BackEnd/.env
+    log_warn "لطفاً فایل investment_platform_BackEnd/.env را ویرایش کنید!"
+fi
+
+# ─── توقف کانتینرهای قبلی ───────────────────────────────
+log_info "توقف سرویس‌های قبلی..."
+docker compose down --remove-orphans 2>/dev/null || true
+
+# ─── Build ───────────────────────────────────────────────
+log_info "ساخت imageها..."
+docker compose build \
+  --build-arg NEXT_PUBLIC_API_BASE_URL="http://5.198.179.184" \
+  --build-arg NEXT_PUBLIC_API_URL="http://5.198.179.184" \
+  --no-cache
+
+log_success "Build موفق"
+
+# ─── راه‌اندازی دیتابیس ──────────────────────────────────
+log_info "راه‌اندازی دیتابیس..."
+docker compose up -d db
+log_info "انتظار برای آماده شدن دیتابیس..."
+sleep 15
+
+# ─── راه‌اندازی بک‌اند ───────────────────────────────────
+log_info "راه‌اندازی بک‌اند..."
+docker compose up -d backend
+log_info "انتظار برای آماده شدن بک‌اند (60 ثانیه)..."
+sleep 60
+
+# ─── راه‌اندازی همه سرویس‌ها ─────────────────────────────
+log_info "راه‌اندازی همه سرویس‌ها..."
+docker compose up -d
+
+# ─── ایجاد superuser (اختیاری) ───────────────────────────
+log_info "آیا می‌خواهید superuser بسازید؟ (y/n)"
+read -r CREATE_SUPER
+if [ "$CREATE_SUPER" = "y" ]; then
+    docker compose exec backend python manage.py createsuperuser
+fi
+
+# ─── نمایش وضعیت ─────────────────────────────────────────
+echo ""
+log_success "═══════════════════════════════════════"
+log_success "   دیپلوی با موفقیت انجام شد!"
+log_success "═══════════════════════════════════════"
+echo ""
+echo -e "  ${GREEN}سامانه:${NC}     http://5.198.179.184"
+echo -e "  ${GREEN}API:${NC}         http://5.198.179.184/api/v1/"
+echo -e "  ${GREEN}Admin:${NC}       http://5.198.179.184/admin/"
+echo ""
+
+docker compose ps
+</file>
+
+<file path="docker-compose.yml">
+version: "3.9"
+
+services:
+  # ─── Database ───────────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-investment_platform}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app_network
+
+  # ─── Backend (Django) ───────────────────────────────────
+  backend:
+    build:
+      context: ./investment_platform_BackEnd
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./investment_platform_BackEnd/.env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings
+      DB_ENGINE: postgresql
+      DB_HOST: db
+      DB_PORT: 5432
+    volumes:
+      - media_files:/app/media
+      - static_files:/app/staticfiles
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/')\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - app_network
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
+             gunicorn config.wsgi:application
+             --bind 0.0.0.0:8000
+             --workers 2
+             --timeout 120
+             --access-logfile -
+             --error-logfile -"
+
+  # ─── Frontend (Next.js) ─────────────────────────────────
+  frontend:
+    build:
+      context: ./investment_platform_FrontEnd/investment_managment_project
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      # این آدرس داخلی داکر است - فرانت‌اند سمت سرور از آن استفاده می‌کند
+      NEXT_PUBLIC_API_BASE_URL: http://${SERVER_IP:-5.198.179.184}
+      NEXT_PUBLIC_API_URL: http://${SERVER_IP:-5.198.179.184}
+    depends_on:
+      - backend
+    networks:
+      - app_network
+
+  # ─── Nginx (Reverse Proxy) ──────────────────────────────
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - static_files:/app/staticfiles:ro
+      - media_files:/app/media:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - app_network
+
+volumes:
+  postgres_data:
+  media_files:
+  static_files:
+
+networks:
+  app_network:
+    driver: bridge
+</file>
+
+<file path="nginx.conf">
+events {
+    worker_connections 1024;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    # ─── Logging ─────────────────────────────────────────
+    log_format main '$remote_addr - $remote_user [$time_local] '
+                    '"$request" $status $body_bytes_sent '
+                    '"$http_referer" "$http_user_agent"';
+
+    access_log /var/log/nginx/access.log main;
+    error_log  /var/log/nginx/error.log warn;
+
+    # ─── Performance ─────────────────────────────────────
+    sendfile        on;
+    tcp_nopush      on;
+    tcp_nodelay     on;
+    keepalive_timeout 65;
+    client_max_body_size 100M;
+    gzip on;
+    gzip_types text/plain text/css application/json
+               application/javascript text/xml
+               application/xml application/xml+rss text/javascript;
+
+    # ─── Rate Limiting ───────────────────────────────────
+    limit_req_zone $binary_remote_addr zone=api_limit:10m rate=20r/s;
+    limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=5r/m;
+
+    # ─── Upstreams ───────────────────────────────────────
+    upstream django_backend {
+        server backend:8000;
+        keepalive 32;
+    }
+
+    upstream nextjs_frontend {
+        server frontend:3000;
+        keepalive 32;
+    }
+
+    # ─── Main Server ─────────────────────────────────────
+    server {
+        listen 80;
+        server_name 5.198.179.184 _;
+
+        # ── Static files (Django) ──────────────────────
+        location /static/ {
+            alias /app/staticfiles/;
+            expires 30d;
+            add_header Cache-Control "public, immutable";
+            add_header X-Content-Type-Options nosniff;
+        }
+
+        # ── Media files (Django) ───────────────────────
+        location /media/ {
+            alias /app/media/;
+            expires 7d;
+            add_header Cache-Control "public";
+        }
+
+        # ── Django Admin ───────────────────────────────
+        location /admin/ {
+            proxy_pass http://django_backend;
+            proxy_set_header Host              $host;
+            proxy_set_header X-Real-IP         $remote_addr;
+            proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_connect_timeout 60s;
+            proxy_read_timeout    60s;
+        }
+
+        # ── API - Auth endpoints (rate limited) ────────
+        location ~ ^/api/v1/(auth|users/otp) {
+            limit_req zone=auth_limit burst=10 nodelay;
+            proxy_pass http://django_backend;
+            proxy_set_header Host              $host;
+            proxy_set_header X-Real-IP         $remote_addr;
+            proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_connect_timeout 60s;
+            proxy_read_timeout    60s;
+        }
+
+        # ── API - General ──────────────────────────────
+        location /api/ {
+            limit_req zone=api_limit burst=50 nodelay;
+            proxy_pass http://django_backend;
+            proxy_set_header Host              $host;
+            proxy_set_header X-Real-IP         $remote_addr;
+            proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_http_version 1.1;
+            proxy_set_header Connection "";
+            proxy_connect_timeout 60s;
+            proxy_read_timeout    120s;
+        }
+
+        # ── Swagger/OpenAPI Docs ───────────────────────
+        location /api/schema/ {
+            proxy_pass http://django_backend;
+            proxy_set_header Host $host;
+        }
+
+        # ── Health Check ───────────────────────────────
+        location /health/ {
+            access_log off;
+            return 200 "healthy\n";
+            add_header Content-Type text/plain;
+        }
+
+        # ── Next.js static assets ──────────────────────
+        location /_next/static/ {
+            proxy_pass http://nextjs_frontend;
+            proxy_set_header Host $host;
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+
+        # ── Next.js (همه چیز دیگر) ────────────────────
+        location / {
+            proxy_pass http://nextjs_frontend;
+            proxy_set_header Host              $host;
+            proxy_set_header X-Real-IP         $remote_addr;
+            proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade    $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_connect_timeout 60s;
+            proxy_read_timeout    60s;
+        }
+    }
+}
 </file>
 
 <file path="README.md">
