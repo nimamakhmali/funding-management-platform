@@ -1,0 +1,25 @@
+"use client";
+
+import { Control } from "react-hook-form";
+import { FormScrollableSelectField } from "@/components/ui/FormScrollableSelectField";
+import { ReportFilterFormValues } from "@/lib/types/project-owner-panel/reports/ReportFilterFormValues";
+import { projects } from "@/lib/constants/project-owner-panel/reports/ReportFilterFormValues";
+
+type Props = {
+  control: Control<ReportFilterFormValues>;
+};
+
+export default function ProjectSelect({
+  control,
+}: Props) {
+  return (
+    <FormScrollableSelectField
+      control={control}
+      name="project"
+      label="انتخاب پروژه"
+      options={projects}
+      getOptionLabel={(item) => item.title}
+      getOptionValue={(item) => item.id}
+    />
+  );
+}
