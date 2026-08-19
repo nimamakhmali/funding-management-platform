@@ -1,0 +1,32 @@
+Django==4.2.17
+djangorestframework==3.14.0
+djangorestframework-simplejwt==5.3.1
+drf-spectacular==0.27.2
+django-cors-headers==4.3.1
+psycopg2-binary==2.9.9
+python-dotenv==1.0.0
+Pillow==10.2.0
+
+
+
+# Dev & Debug
+django-debug-toolbar==4.3.0
+
+# Testing
+pytest==7.4.4
+pytest-django==4.7.0
+factory-boy==3.3.0
+Faker==22.0.0
+
+# Code Quality
+black==23.12.1
+isort==5.13.2
+flake8==7.0.0
+pre-commit==3.6.0
+
+
+
+gunicorn==21.2.0
+
+
+cryptography>=42.0.0

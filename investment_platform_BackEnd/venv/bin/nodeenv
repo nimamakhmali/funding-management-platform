@@ -1,0 +1,10 @@
+#!/bin/sh
+'''exec' /home/nimamakhmali/Documents/funding-management-platform-BackEnd/backend_14_4_2/funding-management-platform-BackEnd/investment_platform/venv/bin/python3 "$0" "$@"
+' '''
+# -*- coding: utf-8 -*-
+import re
+import sys
+from nodeenv import main
+if __name__ == '__main__':
+    sys.argv[0] = re.sub(r'(-script\.pyw|\.exe)?$', '', sys.argv[0])
+    sys.exit(main())

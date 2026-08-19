@@ -1,0 +1,27 @@
+"""
+User Domain Entity (Pure Python - no Django dependency)
+"""
+from dataclasses import dataclass
+from datetime import datetime
+
+
+@dataclass
+class UserEntity:
+    id: str
+    phone_number: str
+    username: str
+    role: str
+    is_active: bool
+    created_at: datetime
+
+    @property
+    def is_investor(self) -> bool:
+        return self.role == "INVESTOR"
+
+    @property
+    def is_entrepreneur(self) -> bool:
+        return self.role in {"ENTREPRENEUR", "PROJECT_OWNER"}
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role == "ADMIN"
