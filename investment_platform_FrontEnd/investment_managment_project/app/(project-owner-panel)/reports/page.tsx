@@ -14,6 +14,14 @@ import type { OwnerReportParams } from "@/lib/api/services/owner-dashboard.servi
 import type { Report } from "@/lib/types/project-owner-panel/reports/ReportTable";
 import { toPersianNumber } from "@/lib/utils/Numberformat";
 
+type ReportStatus = "فعال" | "تکمیل شده" | "اولیه";
+
+function mapReportStatus(status: string): ReportStatus {
+  if (status === "تکمیل شده") return "تکمیل شده";
+  if (status === "فعال") return "فعال";
+  return "اولیه";
+}
+
 export default function Page() {
   const [filters, setFilters] = useState<OwnerReportParams>({});
   const { data, isLoading } = useOwnerReports(filters);
@@ -38,7 +46,7 @@ export default function Page() {
       Math.round(parseFloat(row.raised_amount) / 1_000_000)
     )} م‌ت`,
     progress: Math.round(row.progress),
-    status: row.status,
+    status: mapReportStatus(row.status),
   }));
 
   return (
