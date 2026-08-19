@@ -39,15 +39,20 @@ export function useQueryParams<T extends Record<string, unknown>>() {
   router.replace(`?${params.toString()}`);
 };
 
-  const clear = () => {
+   const set = (key: keyof T, value: string) => {
+    setParams({ [key]: value } as Partial<T>);
+  };
+
+   const clear = () => {
     router.replace(window.location.pathname);
 
     router.refresh();
   };
 
-  return {
-    getAll,
-    setParams,
-    clear,
-  };
-}
+   return {
+     getAll,
+     setParams,
+     set,
+     clear,
+   };
+ }

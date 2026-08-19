@@ -2,6 +2,7 @@ export type ProjectFilters = {
   search: string;
   industry: string;
   status: string;
+  page: string;
 
   minCapital: number | null;
   maxCapital: number | null;
