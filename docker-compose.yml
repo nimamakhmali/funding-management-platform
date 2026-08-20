@@ -25,8 +25,10 @@ services:
       dockerfile: Dockerfile
     container_name: investment_backend
     restart: unless-stopped
+
     env_file:
       - ./investment_platform_BackEnd/.env
+
     environment:
       DJANGO_SETTINGS_MODULE: config.settings
       DB_ENGINE: postgresql
@@ -40,30 +42,38 @@ services:
       CSRF_TRUSTED_ORIGINS: http://${SERVER_IP}
       FRONTEND_BASE_URL: http://${SERVER_IP}
       BACKEND_PUBLIC_BASE_URL: http://${SERVER_IP}
+
     volumes:
       - media_files:/app/media
       - static_files:/app/staticfiles
+
     depends_on:
       db:
         condition: service_healthy
+
     healthcheck:
       test: ["CMD", "python", "-c", "import socket; s=socket.socket(socket.AF_INET, socket.SOCK_STREAM); s.settimeout(3); s.connect(('localhost', 8000)); s.close()"]
       interval: 15s
       timeout: 5s
       retries: 10
       start_period: 60s
+
     networks:
       - app_network
-    command: >
-      sh -c "python manage.py migrate --noinput &&
-             python manage.py collectstatic --noinput &&
-             gunicorn config.wsgi:application
-             --bind 0.0.0.0:8000
-             --workers 2
-             --timeout 120
-             --access-logfile -
-             --error-logfile -"
 
+    command:
+      - gunicorn
+      - config.wsgi:application
+      - --bind
+      - 0.0.0.0:8000
+      - --workers
+      - "2"
+      - --timeout
+      - "120"
+      - --access-logfile
+      - "-"
+      - --error-logfile
+      - "-"
   # ─── Frontend (Next.js + pnpm) ─────────────
   frontend:
     build:
