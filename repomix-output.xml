@@ -40,6 +40,8 @@ The content is organized as follows:
 </file_summary>
 
 <directory_structure>
+.kilo/
+  kilo.jsonc
 docs/
   Periodic Profit Calculation & Distribution/
     Activity Diagram (Flowchart).png
@@ -299,12 +301,9 @@ investment_platform_BackEnd/
   .env
   .env.example
   .gitignore
-  deploy.sh
-  docker-compose.yml
   Dockerfile
   Makefile
   manage.py
-  nginx.conf
   pyproject.toml
   requirements.txt
 investment_platform_FrontEnd/
@@ -1071,8 +1070,10 @@ investment_platform_FrontEnd/
       images/
         img-1.png
         man.png
+    .dockerignore
     .env.local
     .gitignore
+    .npmrc
     AGENTS.md
     CLAUDE.md
     components.json
@@ -1086,6 +1087,7 @@ investment_platform_FrontEnd/
     README.md
     tsconfig.json
   .env.local
+.env.example
 deploy.sh
 docker-compose.yml
 nginx.conf
@@ -1095,6 +1097,13 @@ structure.md
 
 <files>
 This section contains the contents of the repository's files.
+
+<file path=".kilo/kilo.jsonc">
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  "snapshot": false
+}
+</file>
 
 <file path="docs/ER.drawio">
 <mxfile host="65bd71144e">
@@ -10202,37 +10211,22 @@ def wallet_with_balance(db, investor_user):
 
 <file path="investment_platform_BackEnd/.dockerignore">
 .env
+.env.*
+!.env.example
 .git
-.gitignore
+__pycache__/
 *.pyc
-__pycache__
-*.pyo
-*.pyd
-.Python
-*.so
-*.egg
-*.egg-info
-dist
-build
-venv
-env
-.venv
-node_modules
-npm-debug.log
-yarn-error.log
-.DS_Store
-*.md
-tests
-pytest.ini
-.tox
-coverage.xml
-htmlcov
-.mypy_cache
-.pytest_cache
-.coverage
-*.swp
-*.swo
-*~
+*.sqlite3
+media/
+staticfiles/
+logs/
+.pytest_cache/
+tests/
+.venv/
+venv/
+docker-compose.yml
+nginx.conf
+deploy.sh
 </file>
 
 <file path="investment_platform_BackEnd/.env">
@@ -10245,7 +10239,7 @@ ALLOWED_HOSTS=5.198.179.184,localhost,127.0.0.1
 DB_ENGINE=postgresql
 DB_NAME=investment_platform
 DB_USER=postgres
-DB_PASSWORD=StrongPassword123!
+DB_PASSWORD=postgres
 DB_HOST=db
 DB_PORT=5432
 
@@ -10357,168 +10351,31 @@ FIELD_ENCRYPTION_KEY=generate-with-fernet-and-put-here
 
 </file>
 
-<file path="investment_platform_BackEnd/deploy.sh">
-#!/bin/bash
-set -e
-
-echo "🚀 Starting deployment..."
-
-# 1. Pull latest code
-git pull origin main
-
-# 2. Build new image
-docker-compose build --no-cache
-
-# 3. Stop old containers
-docker-compose down
-
-# 4. Start new containers
-docker-compose up -d
-
-# 5. Run migrations
-docker-compose exec -T backend python manage.py migrate --noinput
-
-# 6. Collect static files
-docker-compose exec -T backend python manage.py collectstatic --noinput --clear
-
-# 7. Health check
-sleep 10
-if curl -f http://localhost:8000/api/v1/ > /dev/null 2>&1; then
-    echo "✅ Deployment successful!"
-else
-    echo "❌ Health check failed!"
-    docker-compose logs backend
-    exit 1
-fi
-
-# 8. Cleanup old images
-docker image prune -f
-
-echo "🎉 Deployment completed!"
-</file>
-
-<file path="investment_platform_BackEnd/docker-compose.yml">
-version: "3.9"
-
-services:
-  db:
-    image: postgres:15-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${DB_NAME:-investment_platform}
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "${DB_PORT:-5433}:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - backend
-
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    ports:
-      - "6380:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-    networks:
-      - backend
-
-  backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      DJANGO_SETTINGS_MODULE: config.settings
-      DB_HOST: db
-      REDIS_URL: redis://redis:6379/0
-    volumes:
-      - media_files:/app/media
-      - static_files:/app/staticfiles
-    ports:
-      - "${BACKEND_PORT:-8000}:8000"
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "python", "-c", "import socket; s = socket.socket(socket.AF_INET, socket.SOCK_STREAM); s.settimeout(2); s.connect(('localhost', 8000)); s.close()"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    networks:
-      - backend
-      - frontend
-    command: >
-      sh -c "python manage.py migrate --noinput &&
-             python manage.py collectstatic --noinput &&
-             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 4"
-
-  nginx:
-    image: nginx:alpine
-    restart: unless-stopped
-    ports:
-      - "8080:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - static_files:/app/staticfiles:ro
-      - media_files:/app/media:ro
-      - ./ssl:/etc/nginx/ssl:ro
-    depends_on:
-      - backend
-    networks:
-      - frontend
-
-volumes:
-  postgres_data:
-  redis_data:
-  media_files:
-  static_files:
-
-networks:
-  backend:
-    driver: bridge
-  frontend:
-    driver: bridge
-</file>
-
 <file path="investment_platform_BackEnd/Dockerfile">
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    DJANGO_SETTINGS_MODULE=config.settings  
+    DJANGO_SETTINGS_MODULE=config.settings
 
 WORKDIR /app
 
 COPY requirements.txt .
+
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+RUN useradd -m -u 1000 appuser && \
+    mkdir -p /app/staticfiles /app/media && \
+    chown -R appuser:appuser /app
+
 USER appuser
 
 EXPOSE 8000
-CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "4"]
+
+CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2", "--timeout", "120", "--access-logfile", "-", "--error-logfile", "-"]
 </file>
 
 <file path="investment_platform_BackEnd/Makefile">
@@ -10587,87 +10444,6 @@ if __name__ == "__main__":
     main()
 </file>
 
-<file path="investment_platform_BackEnd/nginx.conf">
-events {
-    worker_connections 1024;
-}
-
-http {
-    include /etc/nginx/mime.types;
-    default_type application/octet-stream;
-
-    upstream backend {
-        server backend:8000;
-    }
-
-    # Rate limiting
-    limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;
-
-    server {
-        listen 80;
-        server_name _;
-
-        # Redirect HTTP to HTTPS (در production فعال کنید)
-        # return 301 https://$host$request_uri;
-
-        client_max_body_size 100M;
-
-        # Static files
-        location /static/ {
-            alias /app/staticfiles/;
-            expires 30d;
-            add_header Cache-Control "public, immutable";
-        }
-
-        location /media/ {
-            alias /app/media/;
-            expires 7d;
-        }
-
-        # API endpoints
-        location /api/ {
-            limit_req zone=api_limit burst=20 nodelay;
-            
-            proxy_pass http://backend;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-            
-            # Timeouts
-            proxy_connect_timeout 60s;
-            proxy_send_timeout 60s;
-            proxy_read_timeout 60s;
-        }
-
-        # Admin panel
-        location /admin/ {
-            proxy_pass http://backend;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-        }
-
-        # Health check
-        location /health/ {
-            access_log off;
-            return 200 "OK";
-        }
-    }
-
-    # HTTPS (در production)
-    # server {
-    #     listen 443 ssl http2;
-    #     server_name yourdomain.com;
-    #
-    #     ssl_certificate /etc/nginx/ssl/cert.pem;
-    #     ssl_certificate_key /etc/nginx/ssl/key.pem;
-    #     ssl_protocols TLSv1.2 TLSv1.3;
-    #
-    #     # سایر تنظیمات مشابه بالا
-    # }
-}
-</file>
-
 <file path="investment_platform_BackEnd/pyproject.toml">
 [tool.poetry]
 name = "investment-platform"
@@ -10716,8 +10492,6 @@ django-cors-headers==4.3.1
 psycopg2-binary==2.9.9
 python-dotenv==1.0.0
 Pillow==10.2.0
-
-
 
 # Dev & Debug
 django-debug-toolbar==4.3.0
@@ -12087,45 +11861,88 @@ export default function Page({ params }: Props) {
 import { notFound } from "next/navigation";
 import ProjectDetailsPage from "@/components/pages/main/project-details/ProjectDetailsPage";
 import { useProjectDetail } from "@/lib/hooks/useProjects";
+import { BackendProject } from "@/lib/api/services/projects.service";
+import { ProjectDocument as BackendProjectDocument } from "@/lib/api/services/projects.service";
+import { Project, ProjectDocument, ProjectStatus } from "@/lib/types/project";
 
 interface Props {
   id: string;
 }
 
+function mapStatus(s: string): ProjectStatus {
+  const map: Record<string, ProjectStatus> = {
+    APPROVED: "active",
+    FUNDING: "active",
+    ACTIVE: "active",
+    FUNDING_COMPLETED: "funded",
+    PROFIT_CALCULATION: "funded",
+    PROFIT_DISTRIBUTED: "funded",
+    COMPLETED: "funded",
+  };
+  return map[s] ?? "closed";
+}
+
+function mapDocument(doc: BackendProjectDocument): ProjectDocument {
+  const ext = doc.file_extension?.toLowerCase() ?? "";
+  let type: ProjectDocument["type"] = "pdf";
+  if (ext === "xlsx" || ext === "xls") type = "excel";
+  else if (ext === "zip" || ext === "rar") type = "zip";
+
+  return {
+    id: doc.id,
+    title: doc.title,
+    size: doc.file_size_display,
+    type,
+    isLocked: true,
+  };
+}
+
+function mapToProject(p: BackendProject): Project {
+  return {
+    id: p.id,
+    title: p.title,
+    symbol: p.owner?.username ?? "",
+    description: p.description ?? "",
+    shortDescription: p.description?.slice(0, 120) ?? "",
+    industry: p.category_display,
+    category: p.category_display,
+    image: p.cover_image_url ?? "/images/img-1.png",
+    status: mapStatus(p.status),
+    progress: parseFloat(p.funding_percentage) || 0,
+    targetAmount: parseFloat(p.required_budget) || 0,
+    fundedAmount: parseFloat(p.raised_amount) || 0,
+    investors: p.investors_count,
+    profit: parseFloat(p.profit_rate_percentage ?? "0") || 0,
+    chartData: [],
+    projectCode: p.id.slice(0, 8).toUpperCase(),
+    remainingDays: p.remaining_days,
+    minInvestment: parseFloat(p.min_investment_amount) || 0,
+    maxInvestment: parseFloat(p.max_investment_amount ?? p.required_budget) || 0,
+    investmentPeriod: p.remaining_days,
+    paymentPeriod: "ماهانه",
+    guarantee: "ضمانت‌نامه بانکی",
+    documents: (p.documents ?? []).map(mapDocument),
+  };
+}
+
+function SkeletonDetail() {
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+    </div>
+  );
+}
+
 export default function ProjectDetailClient({ id }: Props) {
   const { data: project, isLoading, isError } = useProjectDetail(id);
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
-  }
+  if (isLoading) return <SkeletonDetail />;
 
   if (isError || !project) {
     notFound();
   }
 
-  // تبدیل Project بک‌اند به فرمت مورد انتظار ProjectDetailsPage
-  const adaptedProject = {
-    id: project.id,
-    title: project.title,
-    symbol: project.owner?.username ?? "",
-    industry: project.category ?? "",
-    status: project.status,
-    statusDisplay: project.status_display,
-    targetAmount: parseFloat(project.required_budget) || 0,
-    raisedAmount: parseFloat(project.raised_amount) || 0,
-    profit: parseFloat(project.profit_rate_percentage ?? "0") || 0,
-    fundingPercentage: parseFloat(project.funding_percentage) || 0,
-    isFundingComplete: project.is_funding_complete,
-    startDate: project.start_date,
-    endDate: project.end_date,
-    description: project.description,
-    minInvestment: parseFloat(project.min_investment_amount) || 0,
-    owner: project.owner,
-  };
+  const adaptedProject = mapToProject(project);
 
   return <ProjectDetailsPage project={adaptedProject} />;
 }
@@ -12357,6 +12174,14 @@ import type { OwnerReportParams } from "@/lib/api/services/owner-dashboard.servi
 import type { Report } from "@/lib/types/project-owner-panel/reports/ReportTable";
 import { toPersianNumber } from "@/lib/utils/Numberformat";
 
+type ReportStatus = "فعال" | "تکمیل شده" | "اولیه";
+
+function mapReportStatus(status: string): ReportStatus {
+  if (status === "تکمیل شده") return "تکمیل شده";
+  if (status === "فعال") return "فعال";
+  return "اولیه";
+}
+
 export default function Page() {
   const [filters, setFilters] = useState<OwnerReportParams>({});
   const { data, isLoading } = useOwnerReports(filters);
@@ -12381,7 +12206,7 @@ export default function Page() {
       Math.round(parseFloat(row.raised_amount) / 1_000_000)
     )} م‌ت`,
     progress: Math.round(row.progress),
-    status: row.status,
+    status: mapReportStatus(row.status),
   }));
 
   return (
@@ -19596,7 +19421,7 @@ export default function InvestmentProjectCardConnected({ project }: Props) {
                 پیشرفت تامین مالی
               </span>
               <span className="text-primary font-bold font-mono text-xs">
-                {toPersianNumber(progress.toFixed(1))}%
+                {toPersianNumber(Number(progress.toFixed(1)))}%
               </span>
             </div>
             <div className="w-full bg-neutral-border/50 rounded-full h-2 overflow-hidden">
@@ -20180,7 +20005,7 @@ import ProfitReportSwitchStatus from "./ProfitReportSwitchStatus";
 import ProfitReportTableAction from "./ProfitReportTableAction";
 import { useMyPayouts } from "@/lib/hooks/useProfitReport";
 import { InvestorPayout, PayoutStatus } from "@/lib/api/services/profit.service";
-import { TableSkeleton } from "@/components/ui/table-skeleton";
+import TableSkeleton from "@/components/ui/table-skeleton";
 
 // map وضعیت بک‌اند به فرمت فرانت
 function mapStatus(status: PayoutStatus): "pay" | "isPending" {
@@ -25654,87 +25479,101 @@ import {
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-export default function ProjectsPagination() {
+interface Props {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+}
+
+function getPageNumbers(current: number, total: number): (number | "ellipsis")[] {
+  if (total <= 5) return Array.from({ length: total }, (_, i) => i + 1);
+
+  const pages: (number | "ellipsis")[] = [1];
+
+  if (current > 3) pages.push("ellipsis");
+
+  const start = Math.max(2, current - 1);
+  const end = Math.min(total - 1, current + 1);
+
+  for (let i = start; i <= end; i++) pages.push(i);
+
+  if (current < total - 2) pages.push("ellipsis");
+  if (total > 1) pages.push(total);
+
+  return pages;
+}
+
+export default function ProjectsPagination({
+  currentPage,
+  totalPages,
+  onPageChange,
+}: Props) {
+  const pages = getPageNumbers(currentPage, totalPages);
+
   return (
     <div className="mt-12">
       <Pagination>
         <PaginationContent className="gap-2">
-          <PaginationItem>
-            <PaginationLink
-              href="#"
-              className="
-                h-10 w-10 rounded-xl border border-border
-                hover:border-primary hover:text-primary
-              "
-            >
-              <ChevronRight className="h-4 w-4" />
-            </PaginationLink>
-          </PaginationItem>
-          <PaginationItem>
-            <PaginationLink
-              href="#"
-              isActive
-              className="
-                h-10 w-10 rounded-xl
-                bg-primary text-white
-                border-primary
-                hover:bg-primary-dark
-              "
-            >
-              ۱
-            </PaginationLink>
-          </PaginationItem>
+          {currentPage > 1 && (
+            <PaginationItem>
+              <PaginationLink
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onPageChange(currentPage - 1);
+                }}
+                className="
+                  h-10 w-10 rounded-xl border border-border
+                  hover:border-primary hover:text-primary
+                "
+              >
+                <ChevronRight className="h-4 w-4" />
+              </PaginationLink>
+            </PaginationItem>
+          )}
 
-          <PaginationItem>
-            <PaginationLink
-              href="#"
-              className="
-                h-10 w-10 rounded-xl border border-border
-                hover:border-primary hover:text-primary
-              "
-            >
-              ۲
-            </PaginationLink>
-          </PaginationItem>
+          {pages.map((page, index) =>
+            page === "ellipsis" ? (
+              <PaginationItem key={`ellipsis-${index}`}>
+                <PaginationEllipsis />
+              </PaginationItem>
+            ) : (
+              <PaginationItem key={page}>
+                <PaginationLink
+                  href="#"
+                  isActive={page === currentPage}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onPageChange(page);
+                  }}
+                  className="
+                    h-10 w-10 rounded-xl border border-border
+                    hover:border-primary hover:text-primary
+                  "
+                >
+                  {page.toLocaleString("fa-IR")}
+                </PaginationLink>
+              </PaginationItem>
+            )
+          )}
 
-          <PaginationItem>
-            <PaginationLink
-              href="#"
-              className="
-                h-10 w-10 rounded-xl border border-border
-                hover:border-primary hover:text-primary
-              "
-            >
-              ۳
-            </PaginationLink>
-          </PaginationItem>
-
-          <PaginationItem>
-            <PaginationEllipsis />
-          </PaginationItem>
-
-          <PaginationItem>
-            <PaginationLink
-              href="#"
-              className="
-                h-10 w-10 rounded-xl border border-border
-                hover:border-primary hover:text-primary
-              "
-            >
-              ۸
-            </PaginationLink>
-          </PaginationItem>
-          <PaginationItem>
-            <PaginationLink
-              href="#"
-              className="
-                h-10 w-10 rounded-xl border border-border
-                hover:border-primary hover:text-primary
-              "
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </PaginationLink>
-          </PaginationItem>
+          {currentPage < totalPages && (
+            <PaginationItem>
+              <PaginationLink
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onPageChange(currentPage + 1);
+                }}
+                className="
+                  h-10 w-10 rounded-xl border border-border
+                  hover:border-primary hover:text-primary
+                "
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </PaginationLink>
+            </PaginationItem>
+          )}
         </PaginationContent>
       </Pagination>
     </div>
@@ -27901,7 +27740,7 @@ import {
 
 import ProjectOwnerDashboardCard from "./ProjectOwnerDashboardCard";
 import { useOwnerDashboard } from "@/lib/hooks/useOwnerDashboard";
-import { ProjectOwnerDashboardCards } from
+import type { ProjectOwnerDashboardCards } from
   "@/lib/types/project-owner-panel/project-owner-dashboard/projectOwnerDashboardCards";
 
 // تبدیل عدد به فرمت فارسی خوانا
@@ -31543,7 +31382,7 @@ type ReusableTableProps<T> = {
   isLoading?: boolean;
 };
 
-export function ReusableTable<T extends Record<string, unknown>>({
+export function ReusableTable<T extends object>({
   data,
   columns,
   title,
@@ -34338,8 +34177,6 @@ export interface OwnerDashboardData {
 }
 
 
-// اضافه به انتهای فایل - بعد از ownerDashboardService
-
 export interface OwnerReportStats {
   total_projects: number;
   active_projects: number;
@@ -34380,6 +34217,11 @@ export interface OwnerReportData {
   table: OwnerReportTableRow[];
   status_chart: OwnerReportChartItem[];
   comparison_chart: OwnerComparisonChartItem[];
+}
+
+export interface MonthlyChartItem {
+  month: string;
+  value: number;
 }
 
 export interface OwnerReportParams {
@@ -34450,20 +34292,6 @@ export const ownerDashboardService = {
     const res = await axiosInstance.get("/projects/owner-reports/", { params });
     return unwrap<OwnerReportData>(res);
   },
-
-};
-
-
-// در انتهای فایل اضافه کن
-
-export interface MonthlyChartItem {
-  month: string;
-  value: number;
-}
-
-// داخل ownerDashboardService اضافه کن:
-export const ownerDashboardService = {
-  // ... متدهای موجود ...
 
   getMonthlyStats: async (): Promise<MonthlyChartItem[]> => {
     const res = await axiosInstance.get("/projects/owner-monthly-stats/");
@@ -39084,18 +38912,23 @@ export function useQueryParams<T extends Record<string, unknown>>() {
   router.replace(`?${params.toString()}`);
 };
 
-  const clear = () => {
+   const set = (key: keyof T, value: string) => {
+    setParams({ [key]: value } as Partial<T>);
+  };
+
+   const clear = () => {
     router.replace(window.location.pathname);
 
     router.refresh();
   };
 
-  return {
-    getAll,
-    setParams,
-    clear,
-  };
-}
+   return {
+     getAll,
+     setParams,
+     set,
+     clear,
+   };
+ }
 </file>
 
 <file path="investment_platform_FrontEnd/investment_managment_project/lib/hooks/useSkeleton.ts">
@@ -40644,6 +40477,7 @@ export type ProjectFilters = {
   search: string;
   industry: string;
   status: string;
+  page: string;
 
   minCapital: number | null;
   maxCapital: number | null;
@@ -41544,6 +41378,16 @@ export function cn(...inputs: ClassValue[]) {
 }
 </file>
 
+<file path="investment_platform_FrontEnd/investment_managment_project/.dockerignore">
+node_modules
+.next
+.git
+.env.local
+.env.*.local
+npm-debug.log*
+.turbo
+</file>
+
 <file path="investment_platform_FrontEnd/investment_managment_project/.env.local">
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 NEXT_PUBLIC_API_URL=http://localhost:8000
@@ -41591,6 +41435,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+</file>
+
+<file path="investment_platform_FrontEnd/investment_managment_project/.npmrc">
+registry=https://registry.npmmirror.com/
+network-timeout=600000
+fetch-retries=5
+fetch-retry-mintimeout=20000
+fetch-retry-maxtimeout=120000
+network-concurrency=4
 </file>
 
 <file path="investment_platform_FrontEnd/investment_managment_project/AGENTS.md">
@@ -42247,7 +42100,7 @@ WORKDIR /app
 # نصب pnpm
 RUN npm install -g pnpm
 
-COPY package.json pnpm-lock.yaml* ./
+COPY package.json pnpm-lock.yaml* .npmrc* ./
 
 RUN pnpm install --frozen-lockfile
 
@@ -42595,11 +42448,28 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 NEXT_PUBLIC_API_URL=http://localhost:8000
 </file>
 
+<file path=".env.example">
+# ============================================
+# متغیرهای زیرساخت (فقط برای docker-compose)
+# این فایل را به .env کپی کنید و مقادیر را ویرایش کنید
+# ============================================
+
+# آدرس عمومی سرور — بدون http:// و بدون اسلش انتهایی
+SERVER_IP=5.198.179.184
+
+# اطلاعات دیتابیس (باید یک‌سان با محتوای backend/.env نباشد لازم نیست، این مقادیر ملاک هستند)
+DB_NAME=investment_platform
+DB_USER=postgres
+DB_PASSWORD=change-this-strong-password
+
+# پورت عمومی nginx
+HTTP_PORT=80
+</file>
+
 <file path="deploy.sh">
 #!/bin/bash
 set -e
 
-# ─── رنگ‌ها برای خروجی ──────────────────────────────────
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -42611,158 +42481,178 @@ log_success() { echo -e "${GREEN}[OK]${NC} $1"; }
 log_warn()    { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error()   { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
-# ─── بررسی پیش‌نیازها ───────────────────────────────────
+# ── بررسی Docker ──
 log_info "بررسی پیش‌نیازها..."
-command -v docker        || log_error "Docker نصب نیست!"
-command -v docker-compose || command -v docker compose || log_error "Docker Compose نصب نیست!"
-log_success "پیش‌نیازها تأیید شد"
+command -v docker >/dev/null 2>&1 || log_error "Docker نصب نیست!"
+docker compose version >/dev/null 2>&1 || log_error "Docker Compose نصب نیست!"
+log_success "Docker موجود است"
 
-# ─── بررسی فایل .env ─────────────────────────────────────
-if [ ! -f "./investment_platform_BackEnd/.env" ]; then
-    log_warn "فایل .env بک‌اند پیدا نشد، از example کپی می‌شود"
-    cp ./investment_platform_BackEnd/.env.example \
-       ./investment_platform_BackEnd/.env
-    log_warn "لطفاً فایل investment_platform_BackEnd/.env را ویرایش کنید!"
+# ── ساخت Swap برای جلوگیری از OOM (فقط با sudo) ──
+if [ "$EUID" -eq 0 ] && [ ! -f /swapfile ]; then
+    log_info "ساخت 4GB فایل Swap (سرور شما فقط 2GB رم دارد)..."
+    fallocate -l 4G /swapfile
+    chmod 600 /swapfile
+    mkswap /swapfile
+    swapon /swapfile
+    echo '/swapfile none swap sw 0 0' >> /etc/fstab
+    log_success "Swap فعال شد"
+else
+    log_warn "Swap از قبل هست یا دسترسی root نیست (برای ساخت Swap با sudo اجرا کنید)"
 fi
 
-# ─── توقف کانتینرهای قبلی ───────────────────────────────
-log_info "توقف سرویس‌های قبلی..."
+# ── بررسی فایل‌های .env ──
+if [ ! -f "./.env" ]; then
+    log_error "فایل .env در ریشه پیدا نشد! ابتدا: cp .env.example .env  و مقادیر را ویرایش کنید."
+fi
+if [ ! -f "./investment_platform_BackEnd/.env" ]; then
+    log_error "فایل investment_platform_BackEnd/.env پیدا نشد!"
+fi
+
+# ── توقف کانتینرهای قبلی ──
+log_info "توقف سرویس‌های قبلی (در صورت وجود)..."
 docker compose down --remove-orphans 2>/dev/null || true
 
-# ─── Build ───────────────────────────────────────────────
-log_info "ساخت imageها..."
-docker compose build \
-  --build-arg NEXT_PUBLIC_API_BASE_URL="http://5.198.179.184" \
-  --build-arg NEXT_PUBLIC_API_URL="http://5.198.179.184" \
-  --no-cache
-
+# ── Build ──
+log_info "ساخت Image‌ها (چند دقیقه طول می‌کشد، صبور باشید)..."
+docker compose build
 log_success "Build موفق"
 
-# ─── راه‌اندازی دیتابیس ──────────────────────────────────
-log_info "راه‌اندازی دیتابیس..."
-docker compose up -d db
-log_info "انتظار برای آماده شدن دیتابیس..."
-sleep 15
-
-# ─── راه‌اندازی بک‌اند ───────────────────────────────────
-log_info "راه‌اندازی بک‌اند..."
-docker compose up -d backend
-log_info "انتظار برای آماده شدن بک‌اند (60 ثانیه)..."
-sleep 60
-
-# ─── راه‌اندازی همه سرویس‌ها ─────────────────────────────
-log_info "راه‌اندازی همه سرویس‌ها..."
+# ── راه‌اندازی همه سرویس‌ها (ترتیب توسط depends_on مدیریت می‌شود) ──
+log_info "راه‌اندازی سرویس‌ها..."
 docker compose up -d
 
-# ─── ایجاد superuser (اختیاری) ───────────────────────────
-log_info "آیا می‌خواهید superuser بسازید؟ (y/n)"
-read -r CREATE_SUPER
+log_info "انتظار برای سالم شدن بک‌اند..."
+sleep 25
+
+# ── ایجاد Superuser (اختیاری) ──
+read -p "آیا می‌خواهید یک حساب مدیر (superuser) بسازید؟ (y/n) " CREATE_SUPER
 if [ "$CREATE_SUPER" = "y" ]; then
     docker compose exec backend python manage.py createsuperuser
 fi
 
-# ─── نمایش وضعیت ─────────────────────────────────────────
+SERVER_IP=$(grep SERVER_IP .env | cut -d '=' -f2)
 echo ""
 log_success "═══════════════════════════════════════"
 log_success "   دیپلوی با موفقیت انجام شد!"
 log_success "═══════════════════════════════════════"
+echo -e "  ${GREEN}سامانه:${NC}   http://$SERVER_IP"
+echo -e "  ${GREEN}API:${NC}      http://$SERVER_IP/api/"
+echo -e "  ${GREEN}Admin:${NC}    http://$SERVER_IP/admin/"
 echo ""
-echo -e "  ${GREEN}سامانه:${NC}     http://5.198.179.184"
-echo -e "  ${GREEN}API:${NC}         http://5.198.179.184/api/v1/"
-echo -e "  ${GREEN}Admin:${NC}       http://5.198.179.184/admin/"
-echo ""
-
 docker compose ps
 </file>
 
 <file path="docker-compose.yml">
-version: "3.9"
-
 services:
-  # ─── Database ───────────────────────────────────────────
+  # ─── Database ──────────────────────────────
   db:
     image: postgres:15-alpine
+    container_name: investment_db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${DB_NAME:-investment_platform}
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
       - app_network
 
-  # ─── Backend (Django) ───────────────────────────────────
+  # ─── Backend (Django) ──────────────────────
   backend:
     build:
       context: ./investment_platform_BackEnd
       dockerfile: Dockerfile
+    container_name: investment_backend
     restart: unless-stopped
+
     env_file:
       - ./investment_platform_BackEnd/.env
+
     environment:
       DJANGO_SETTINGS_MODULE: config.settings
       DB_ENGINE: postgresql
       DB_HOST: db
       DB_PORT: 5432
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      ALLOWED_HOSTS: ${SERVER_IP},localhost,127.0.0.1
+      CORS_ALLOWED_ORIGINS: http://${SERVER_IP}
+      CSRF_TRUSTED_ORIGINS: http://${SERVER_IP}
+      FRONTEND_BASE_URL: http://${SERVER_IP}
+      BACKEND_PUBLIC_BASE_URL: http://${SERVER_IP}
+
     volumes:
       - media_files:/app/media
       - static_files:/app/staticfiles
+
     depends_on:
       db:
         condition: service_healthy
+
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/')\""]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      test: ["CMD", "python", "-c", "import socket; s=socket.socket(socket.AF_INET, socket.SOCK_STREAM); s.settimeout(3); s.connect(('localhost', 8000)); s.close()"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
       start_period: 60s
+
     networks:
       - app_network
-    command: >
-      sh -c "python manage.py migrate --noinput &&
-             python manage.py collectstatic --noinput &&
-             gunicorn config.wsgi:application
-             --bind 0.0.0.0:8000
-             --workers 2
-             --timeout 120
-             --access-logfile -
-             --error-logfile -"
 
-  # ─── Frontend (Next.js) ─────────────────────────────────
+    command:
+      - gunicorn
+      - config.wsgi:application
+      - --bind
+      - 0.0.0.0:8000
+      - --workers
+      - "2"
+      - --timeout
+      - "120"
+      - --access-logfile
+      - "-"
+      - --error-logfile
+      - "-"
+  # ─── Frontend (Next.js + pnpm) ─────────────
   frontend:
     build:
       context: ./investment_platform_FrontEnd/investment_managment_project
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://${SERVER_IP}
+        NEXT_PUBLIC_API_URL: http://${SERVER_IP}
+    container_name: investment_frontend
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      # این آدرس داخلی داکر است - فرانت‌اند سمت سرور از آن استفاده می‌کند
-      NEXT_PUBLIC_API_BASE_URL: http://${SERVER_IP:-5.198.179.184}
-      NEXT_PUBLIC_API_URL: http://${SERVER_IP:-5.198.179.184}
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - app_network
 
-  # ─── Nginx (Reverse Proxy) ──────────────────────────────
+  # ─── Nginx (Reverse Proxy) ─────────────────
   nginx:
     image: nginx:alpine
+    container_name: investment_nginx
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "${HTTP_PORT:-80}:80"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - static_files:/app/staticfiles:ro
       - media_files:/app/media:ro
     depends_on:
-      - backend
-      - frontend
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
     networks:
       - app_network
 

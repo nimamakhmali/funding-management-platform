@@ -6,6 +6,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# نصب dependencies سیستمی
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 
 RUN pip install --no-cache-dir --upgrade pip && \
@@ -14,11 +19,17 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY . .
 
 RUN useradd -m -u 1000 appuser && \
-    mkdir -p /app/staticfiles /app/media && \
+    mkdir -p /app/staticfiles /app/media /app/logs && \
     chown -R appuser:appuser /app
 
 USER appuser
 
 EXPOSE 8000
 
-CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2", "--timeout", "120", "--access-logfile", "-", "--error-logfile", "-"]
+# CMD پیش‌فرض (docker-compose این را override می‌کند)
+CMD ["gunicorn", "config.wsgi:application", \
+     "--bind", "0.0.0.0:8000", \
+     "--workers", "2", \
+     "--timeout", "120", \
+     "--access-logfile", "-", \
+     "--error-logfile", "-"]
