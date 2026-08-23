@@ -1,5 +1,5 @@
 services:
-  # ─── Database ──────────────────────────────────────
+
   db:
     image: postgres:15-alpine
     container_name: investment_db
@@ -19,7 +19,6 @@ services:
     networks:
       - app_network
 
-  # ─── Backend (Django + Gunicorn) ───────────────────
   backend:
     build:
       context: ./investment_platform_BackEnd
@@ -35,26 +34,15 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health/')\" 2>/dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health/ || exit 1"]
       interval: 20s
       timeout: 10s
       retries: 5
-      start_period: 60s
+      start_period: 90s
     networks:
       - app_network
-    command: >
-      sh -c "
-        python manage.py migrate --noinput &&
-        python manage.py collectstatic --noinput &&
-        gunicorn config.wsgi:application
-          --bind 0.0.0.0:8000
-          --workers 2
-          --timeout 120
-          --access-logfile -
-          --error-logfile -
-      "
+    command: ["/bin/bash", "-c", "python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 120 --access-logfile - --error-logfile -"]
 
-  # ─── Frontend (Next.js) ────────────────────────────
   frontend:
     build:
       context: ./investment_platform_FrontEnd/investment_managment_project
@@ -74,7 +62,6 @@ services:
     networks:
       - app_network
 
-  # ─── Nginx (Reverse Proxy) ─────────────────────────
   nginx:
     image: nginx:alpine
     container_name: investment_nginx
