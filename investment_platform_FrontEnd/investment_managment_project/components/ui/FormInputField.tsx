@@ -20,9 +20,8 @@ const normalizeNumber = (value: string) =>
 const toPersianDigits = (value: string) =>
   value.replace(/[0-9]/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[Number(d)]);
 
-interface Props<
-  T extends FieldValues,
-> extends InputHTMLAttributes<HTMLInputElement> {
+interface Props<T extends FieldValues>
+  extends InputHTMLAttributes<HTMLInputElement> {
   name: Path<T>;
   control: Control<T>;
   label?: string;
@@ -30,7 +29,6 @@ interface Props<
   type?: HTMLInputElement["type"];
   nuSeparator?: boolean;
   textarea?: boolean;
-
 }
 
 function FormInputField<T extends FieldValues>({
@@ -67,16 +65,42 @@ function FormInputField<T extends FieldValues>({
               ? ""
               : type === "number" && nuSeparator
                 ? toPersianDigits(
-                  String(field.value).replace(/\B(?=(\d{3})+(?!\d))/g, ","),
-                )
-                : String(field.value);
+                    String(field.value).replace(
+                      /\B(?=(\d{3})+(?!\d))/g,
+                      ","
+                    )
+                  )
+                : String(field.value === 0 ? "" : field.value);
+
+          const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+            const raw = e.target.value;
+
+            if (type === "number") {
+              if (nuSeparator) {
+                const normalized = normalizeNumber(raw).replace(/,/g, "");
+                const num = Number(normalized);
+                field.onChange(!isNaN(num) ? num : undefined);
+              } else {
+                // ── اصلاح اصلی: تبدیل به number برای فیلدهای عددی ──
+                const normalized = normalizeNumber(raw);
+                if (normalized === "" || normalized === "-") {
+                  field.onChange(normalized === "" ? undefined : normalized);
+                } else {
+                  const num = Number(normalized);
+                  field.onChange(isNaN(num) ? undefined : num);
+                }
+              }
+            } else {
+              field.onChange(raw);
+            }
+          };
 
           return (
             <>
               {textarea ? (
                 <textarea
                   id={name}
-                  {...(props as any)}
+                  {...(props as React.TextareaHTMLAttributes<HTMLTextAreaElement>)}
                   value={displayValue}
                   onChange={(e) => field.onChange(e.target.value)}
                   className={cn(
@@ -84,32 +108,23 @@ function FormInputField<T extends FieldValues>({
                     hasError
                       ? "border-red-500 bg-red-50"
                       : "border-gray-100 focus:border-primary",
-                    className,
+                    className
                   )}
                 />
               ) : (
                 <Input
                   id={name}
                   {...props}
-                  type={type}
+                  type={type === "number" ? "text" : type}
                   inputMode={type === "number" ? "numeric" : undefined}
                   value={displayValue}
-                  onChange={(e) => {
-                    if (type !== "number" || !nuSeparator) {
-                      field.onChange(e.target.value);
-                      return;
-                    }
-
-                    const raw = normalizeNumber(e.target.value).replace(/,/g, "");
-                    const num = Number(raw);
-                    field.onChange(!isNaN(num) ? num : undefined);
-                  }}
+                  onChange={handleChange}
                   className={cn(
                     "w-full h-12 px-4 rounded-2xl border-2 bg-gray-50 text-sm font-medium outline-none transition-all",
                     hasError
                       ? "border-red-500 bg-red-50"
                       : "border-gray-100 focus:border-primary",
-                    className,
+                    className
                   )}
                 />
               )}
