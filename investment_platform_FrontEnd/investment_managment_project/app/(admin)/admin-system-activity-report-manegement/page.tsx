@@ -1,4 +1,6 @@
+// app/(admin)/admin-system-activity-report-manegement/page.tsx
 "use client";
+
 import { useState } from "react";
 import AdminAuditLogTable from "@/components/pages/admin/admin-system-activity-report-management/AdminAuditLogTable";
 import AdminSystemActivityFilterManagement from "@/components/pages/admin/admin-system-activity-report-management/AdminSystemActivityFilterSection";
@@ -7,28 +9,32 @@ import Container from "@/components/ui/Container";
 import AdminSystemActivityHeader from "@/components/pages/admin/admin-system-activity-report-management/AdminSystemActivityHeader";
 import { useAdminAuditLogs } from "@/lib/hooks/useAdmin";
 import { AdminAuditLogFilters } from "@/lib/api/services/admin.service";
+import { AdminAuditLogDetails } from "@/lib/types/admin/admin-system-activity-report-management/AdminAuditLogDetailsCard";
 
 export default function Page() {
-  const [filters, setFilters] = useState<AdminAuditLogFilters>({ page: 1, page_size: 10 });
+  const [filters, setFilters] = useState<AdminAuditLogFilters>({
+    page: 1,
+    page_size: 10,
+  });
   const [selectedLogId, setSelectedLogId] = useState<string | null>(null);
+
   const { data, isLoading } = useAdminAuditLogs(filters);
 
   const selectedLog = data?.results?.find((l) => l.id === selectedLogId) ?? null;
 
-  const logDetails = selectedLog
+  // mapping بک‌اند → AdminAuditLogDetails
+  const logDetails: AdminAuditLogDetails | null = selectedLog
     ? {
         id: selectedLog.id,
         changes: {
-          before: "",
-          after: "",
+          before: JSON.stringify(selectedLog.details?.before ?? {}, null, 2),
+          after: JSON.stringify(selectedLog.details?.after ?? {}, null, 2),
         },
         actor: {
-          name: selectedLog.user
-            ? selectedLog.user.full_name || selectedLog.user.phone_number
-            : "سیستم",
-          role: "",
+          name: selectedLog.user?.full_name || selectedLog.user?.phone_number || "سیستم",
+          role: "مدیر",
           ip: selectedLog.ip_address ?? "—",
-          browser: "",
+          browser: "—",
         },
         metadata: {
           module: selectedLog.action_type,
@@ -41,7 +47,17 @@ export default function Page() {
     <Container>
       <AdminSystemActivityHeader />
       <AdminSystemActivityFilterManagement
-        onFilter={(f) => setFilters((prev) => ({ ...prev, ...f, page: 1 }))}
+        onFilter={(f) =>
+          setFilters((prev) => ({
+            ...prev,
+            action_type:
+              f.adminSystemActivityType?.trim() &&
+              f.adminSystemActivityType.trim() !== " "
+                ? f.adminSystemActivityType.trim()
+                : undefined,
+            page: 1,
+          }))
+        }
       />
       <AdminAuditLogTable
         data={data?.results ?? []}
