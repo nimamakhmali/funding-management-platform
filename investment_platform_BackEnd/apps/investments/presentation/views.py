@@ -193,7 +193,7 @@ class MyInvestmentsView(APIView):
         if status_filter:
             investments = investments.filter(status=status_filter)
 
-        from shared.pagination import StandardPagination
+        from shared.pagination import StandardResultsSetPagination as StandardPagination
         paginator = StandardPagination()
         page = paginator.paginate_queryset(investments, request)
 

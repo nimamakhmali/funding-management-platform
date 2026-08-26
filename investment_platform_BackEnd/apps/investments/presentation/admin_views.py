@@ -15,7 +15,7 @@ from apps.investments.infrastructure.models import (
 from apps.projects.infrastructure.models import Project
 from apps.projects.domain.state_machine import ProjectStatus
 from apps.users.infrastructure.models import User
-from shared.pagination import StandardPagination
+from shared.pagination import StandardResultsSetPagination
 from shared.permissions import IsObserverOrAbove, IsOperatorOrAdmin
 from shared.responses import error_response, success_response
 
