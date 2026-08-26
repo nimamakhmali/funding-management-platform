@@ -119,7 +119,7 @@ class InvestorPayoutsView(APIView):
             qs = qs.filter(status=status_filter)
 
         # پاگینیشن دستی
-        from shared.pagination import StandardPagination
+        from shared.pagination import StandardResultsSetPagination as StandardPagination
         paginator = StandardPagination()
         page = paginator.paginate_queryset(qs, request)
 

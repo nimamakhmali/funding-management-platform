@@ -1,6 +1,16 @@
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 
+const toNumber = (val: unknown) => {
+  if (typeof val === "number") return val;
+  if (typeof val === "string") {
+    const cleaned = val.replace(/,/g, "").trim();
+    const num = Number(cleaned);
+    return isNaN(num) ? val : num;
+  }
+  return val;
+};
+
 export const createProject = z.object({
   projectName: z
     .string()
@@ -8,9 +18,7 @@ export const createProject = z.object({
     .min(3, "نام پروژه باید حداقل ۳ کاراکتر باشد")
     .max(100, "نام پروژه نمی‌تواند بیشتر از ۱۰۰ کاراکتر باشد"),
 
-  category: z
-    .string()
-    .min(1, "دسته بندی پروژه الزامی است"),
+  category: z.string().min(1, "دسته بندی پروژه الزامی است"),
 
   shortDesc: z
     .string()
@@ -23,41 +31,30 @@ export const createProject = z.object({
     .min(1, "توضیحات کامل الزامی است")
     .min(30, "توضیحات کامل باید حداقل ۳۰ کاراکتر باشد"),
 
-  targetAmount: z
-    .number({
-      required_error: "مبلغ مورد نیاز الزامی است",
-    })
-    .min(1000000, "حداقل مبلغ یک میلیون تومان است"),
+  targetAmount: z.preprocess(
+    toNumber,
+    z.number({ invalid_type_error: "مبلغ باید عدد باشد" }).min(1, "مبلغ مورد نیاز الزامی است")
+  ),
 
-  minInvest: z
-    .number({
-      required_error: "حداقل سرمایه گذاری الزامی است",
-    })
-    .min(10000, "حداقل سرمایه گذاری باید بیشتر از ۱۰ هزار تومان باشد"),
+  minInvest: z.preprocess(
+    toNumber,
+    z.number({ invalid_type_error: "حداقل سرمایه‌گذاری باید عدد باشد" }).min(1, "حداقل سرمایه‌گذاری الزامی است")
+  ),
 
-  startDate: z
-    .string()
-    .min(1, "تاریخ شروع الزامی است"),
+  startDate: z.string().min(1, "تاریخ شروع الزامی است"),
 
-  endDate: z
-    .string()
-    .min(1, "تاریخ پایان الزامی است"),
+  endDate: z.string().min(1, "تاریخ پایان الزامی است"),
 
-  duration: z
-    .number({
-      required_error: "مدت تامین مالی الزامی است",
-    })
-    .min(1, "حداقل یک ماه")
-    .max(60, "حداکثر ۶۰ ماه"),
+  duration: z.preprocess(
+    toNumber,
+    z.number({ invalid_type_error: "مدت باید عدد باشد" }).min(1, "حداقل یک ماه").max(60, "حداکثر ۶۰ ماه")
+  ),
 
   documents: z
-  .array(z.instanceof(File))
-  .min(1, "حداقل یک فایل باید بارگذاری شود")
-  .max(5, "حداکثر ۵ فایل مجاز است"),
+    .array(z.instanceof(File))
+    .min(1, "حداقل یک فایل باید بارگذاری شود")
+    .max(5, "حداکثر ۵ فایل مجاز است"),
 });
 
-export type CreateProjectFormValues =
-  z.infer<typeof createProject>;
-
-export const createProjectResolver =
-  zodResolver(createProject);
+export type CreateProjectFormValues = z.infer<typeof createProject>;
+export const createProjectResolver = zodResolver(createProject);
