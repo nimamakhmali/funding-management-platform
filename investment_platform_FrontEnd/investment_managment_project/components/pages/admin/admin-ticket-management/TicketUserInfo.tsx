@@ -1,57 +1,31 @@
-import {ExternalLink} from "lucide-react";
-import { TicketUserInfo as UserType } from 
-"@/lib/types/admin/admin-ticket-management/ticket.userInfo";
+import type { TicketUserInfo } from "@/lib/types/admin/admin-ticket-management/ticket.userInfo";
 
 interface Props {
-user:UserType;
+  user: TicketUserInfo;
 }
 
-
-
-export default function TicketUserInfo({
-user
-}:Props){
-
-   return (
-     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-       <h4 className="font-bold text-sm border-b border-b-gray-100 pb-3 mb-4">
-        اطلاعات کاربر     
-       </h4>
-       <div className="space-y-4">
-         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-gray-100" />
-          <div>
-            <p className="text-sm font-bold">
-             {user.name}
-            </p>
-            <p className="text-[10px] text-sidebar-text">
-             شناسه کاربری: {user.id}    
-            </p>
-         </div>
+export default function TicketUserInfo({ user }: Props) {
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-4">
+      <h4 className="font-bold text-sm border-b border-b-gray-100 pb-3">
+        اطلاعات کاربر
+      </h4>
+      <div className="flex items-center gap-3">
+        <div className="size-12 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-bold">
+          {user.name.charAt(0)}
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-sm font-bold text-text-main">
+            {user.name}
+          </span>
+          <span className="text-xs text-gray-400">
+            {user.level}
+          </span>
+        </div>
       </div>
-         <div className="grid grid-cols-2 gap-4">
-           <div className="p-3 bg-gray-100 rounded-lg">
-             <p className="text-[10px]">
-             سطح کاربری   
-             </p>
-             <p className="text-xs font-bold">
-             {user.level}
-             </p>
-            </div>
-           <div className="p-3 bg-gray-100 rounded-lg">
-             <p className="text-[10px]">
-              تیکت‌های باز   
-             </p>
-             <p className="text-xs font-bold">
-               {user.openTickets}
-             </p>
-           </div>
-         </div>
-          <button className="w-full text-xs text-primary font-bold flex justify-center items-center gap-1">
-            مشاهده پروفایل کامل    
-            <ExternalLink size={14}/>
-          </button>
+      <div className="text-xs text-gray-500">
+        تیکت‌های باز: {user.openTickets}
       </div>
     </div>
-)
+  );
 }

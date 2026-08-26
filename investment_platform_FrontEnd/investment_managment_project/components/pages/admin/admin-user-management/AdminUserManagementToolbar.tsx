@@ -1,9 +1,10 @@
+// components/pages/admin/admin-user-management/AdminUserManagementToolbar.tsx
 "use client";
 
 import { Plus, Search } from "lucide-react";
-import { FormProvider, useForm, useWatch } from "react-hook-form";
+import { useRef } from "react";
+import { FormProvider, useForm } from "react-hook-form";
 import { FormScrollableSelectField } from "@/components/ui/FormScrollableSelectField";
-import { useEffect } from "react";
 
 type FilterForm = {
   search: string;
@@ -13,9 +14,9 @@ type FilterForm = {
 
 const roleOptions = [
   { label: "همه نقش‌ها", value: "" },
-  { label: "مدیر سیستم", value: "مدیر سیستم" },
-  { label: "سرمایه‌گذار", value: "سرمایه‌گذار" },
-  { label: "کارشناس مالی", value: "کارشناس مالی" },
+  { label: "INVESTOR", value: "INVESTOR" },
+  { label: "ENTREPRENEUR", value: "ENTREPRENEUR" },
+  { label: "ADMIN", value: "ADMIN" },
 ];
 
 const statusOptions = [
@@ -29,28 +30,26 @@ interface Props {
   onRoleFilter: (role: string) => void;
 }
 
-export default function AdminUserManagementToolbar({
-  onSearch,
-  onRoleFilter,
-}: Props) {
+export default function AdminUserManagementToolbar({ onSearch, onRoleFilter }: Props) {
   const methods = useForm<FilterForm>({
-    defaultValues: {
-      search: "",
-      role: "",
-      status: "",
-    },
+    defaultValues: { search: "", role: "", status: "" },
   });
 
-  const searchValue = useWatch({ control: methods.control, name: "search" });
-  const roleValue = useWatch({ control: methods.control, name: "role" });
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    onSearch(searchValue ?? "");
-  }, [searchValue, onSearch]);
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    methods.setValue("search", val);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      onSearch(val);
+    }, 400);
+  };
 
-  useEffect(() => {
-    onRoleFilter(roleValue ?? "");
-  }, [roleValue, onRoleFilter]);
+  const handleRoleChange = (value: string) => {
+    methods.setValue("role", value);
+    onRoleFilter(value);
+  };
 
   return (
     <FormProvider {...methods}>
@@ -65,31 +64,25 @@ export default function AdminUserManagementToolbar({
               type="text"
               placeholder="جستجوی کاربر..."
               className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pr-9 pl-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              {...methods.register("search")}
+              onChange={handleSearchChange}
             />
           </div>
         </div>
 
         <div className="w-52">
-          <FormScrollableSelectField
-            control={methods.control}
-            name="role"
-            label="نقش کاربری"
-            options={roleOptions}
-            getOptionLabel={(item) => item.label}
-            getOptionValue={(item) => item.value}
-          />
-        </div>
-
-        <div className="w-52">
-          <FormScrollableSelectField
-            control={methods.control}
-            name="status"
-            label="وضعیت حساب"
-            options={statusOptions}
-            getOptionLabel={(item) => item.label}
-            getOptionValue={(item) => item.value}
-          />
+          <label className="mb-1 block text-xs font-medium text-gray-600">
+            نقش کاربری
+          </label>
+          <select
+            className="w-full rounded-lg border border-gray-200 bg-white py-2.5 px-3 text-sm focus:border-primary focus:outline-none"
+            onChange={(e) => handleRoleChange(e.target.value)}
+          >
+            {roleOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="mr-auto">
