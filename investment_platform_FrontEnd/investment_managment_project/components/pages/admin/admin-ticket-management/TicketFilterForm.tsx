@@ -5,7 +5,11 @@ import { FormScrollableSelectField } from "@/components/ui/FormScrollableSelectF
 import { TicketFilterFormValues } from "@/lib/types/admin/admin-ticket-management/AdminTicketFilterOption";
 import { TICKET_FILTERS } from "@/lib/constants/admin/admin-ticket-management/TicketFilterFormValues ";
 
-export default function TicketFilterForm() {
+interface Props {
+  onFilter: (values: TicketFilterFormValues) => void;
+}
+
+export default function TicketFilterForm({ onFilter }: Props) {
   const form = useForm<TicketFilterFormValues>({
     defaultValues: {
       status: "all",
@@ -15,7 +19,7 @@ export default function TicketFilterForm() {
   });
 
   const onSubmit = (values: TicketFilterFormValues) => {
-    console.log(values);
+    onFilter(values);
   };
 
   return (

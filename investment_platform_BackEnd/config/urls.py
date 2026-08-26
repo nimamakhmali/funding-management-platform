@@ -25,6 +25,7 @@ urlpatterns = [
         path("", include("apps.users.presentation.urls")),
         path("", include("apps.projects.presentation.urls")),
         path("", include("apps.investments.presentation.urls")),
+        path("", include("apps.investments.presentation.admin_urls")),  # ← جدید
         path("", include("apps.profits.presentation.urls")),
         path("", include("apps.support.presentation.urls")),
         path("", include("apps.notifications.presentation.urls")),

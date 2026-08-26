@@ -9,22 +9,26 @@ import TransactionFilterButtons from "./TransactionFilterButton";
 import { AdminTransactionFilterFormValues } from "@/lib/types/admin/admin-transaction-management/AdminTransactionFilterFormValues-types";
 import TransactionPriceRange from "./TransactionPriceRange";
 
-export default function AdminTransactionManagement() {
+interface Props {
+  onFilter: (values: AdminTransactionFilterFormValues) => void;
+}
+
+export default function AdminTransactionManagement({ onFilter }: Props) {
   const { control, handleSubmit, reset } =
-  useForm<AdminTransactionFilterFormValues>({
-    defaultValues: {
-      transaction: "all",
-      dateRange: "",
-      minPrice: undefined,
-      maxPrice: undefined,
-      transactionType: "all",
-    },
-  });
+    useForm<AdminTransactionFilterFormValues>({
+      defaultValues: {
+        transaction: "all",
+        dateRange: "",
+        minPrice: undefined,
+        maxPrice: undefined,
+        transactionType: "all",
+      },
+    });
 
   const onSubmit: SubmitHandler<AdminTransactionFilterFormValues> = (
     data,
   ) => {
-    console.log(data);
+    onFilter(data);
   };
 
   return (
@@ -38,19 +42,19 @@ export default function AdminTransactionManagement() {
       </div>
 
       <form
-  onSubmit={handleSubmit(onSubmit)}
-  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 items-end"
->
-  <TransactionSelect control={control} />
+        onSubmit={handleSubmit(onSubmit)}
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 items-end"
+      >
+        <TransactionSelect control={control} />
 
-  <TransactionDateRange control={control} />
+        <TransactionDateRange control={control} />
 
-  <TransactionPriceRange control={control} />
+        <TransactionPriceRange control={control} />
 
-  <TransactionTypeSelect control={control} />
+        <TransactionTypeSelect control={control} />
 
-  <TransactionFilterButtons onReset={() => reset()} />
-</form>
+        <TransactionFilterButtons onReset={() => reset()} />
+      </form>
     </section>
   );
 }

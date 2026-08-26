@@ -1,17 +1,51 @@
 "use client";
 import { Column, ReusableTable } from "@/components/ui/ReusableTable";
-import { transactionTableData } from "@/lib/constants/admin/admin-transaction-management/AdminTransaction";
-import { AdminTransaction } from "@/lib/types/admin/admin-transaction-management/AdminTransaction-types";
+import { AdminTransaction as AdminTransactionAPI } from "@/lib/api/services/admin.service";
+import { AdminTransaction, AdminTransactionStatus } from "@/lib/types/admin/admin-transaction-management/AdminTransaction-types";
 import TransactionTableActions from "./AdminTransactionTableActions";
 import AdminTransactionStatusBadge from "./AdminTransactionStatusBadge";
 
-export default function AdminTransactionTable() {
+interface Props {
+  data: AdminTransactionAPI[];
+  isLoading: boolean;
+  totalPages: number;
+  currentPage: number;
+  onPageChange: (page: number) => void;
+}
+
+function mapStatus(status: string): AdminTransactionStatus {
+  if (status === "success" || status === "pending" || status === "failed") {
+    return status;
+  }
+  return "pending";
+}
+
+function mapTransaction(t: AdminTransactionAPI): AdminTransaction {
+  return {
+    id: t.id,
+    user: {
+      name: t.user.name,
+      initials: t.user.initials,
+    },
+    type: t.type_display || t.type,
+    amount: Number(t.amount) || 0,
+    status: mapStatus(t.is_successful ? "success" : "pending"),
+    date: t.created_at,
+  };
+}
+
+export default function AdminTransactionTable({
+  data,
+  isLoading,
+  totalPages,
+  currentPage,
+  onPageChange,
+}: Props) {
   const columns: Column<AdminTransaction>[] = [
     {
       header: "شناسه تراکنش",
       accessor: "id",
     },
-
     {
       header: "کاربر",
       accessor: (row) => (
@@ -26,51 +60,51 @@ export default function AdminTransactionTable() {
         </div>
       ),
     },
-
     {
       header: "نوع",
       accessor: "type",
     },
-
     {
       header: "مبلغ (تومان)",
       accessor: (row) => row.amount.toLocaleString("fa-IR"),
     },
-{
-  header: "وضعیت",
-  accessor: (row) => (
-    <AdminTransactionStatusBadge
-      status={row.status}
-    />
-  ),
-},
-
+    {
+      header: "وضعیت",
+      accessor: (row) => (
+        <AdminTransactionStatusBadge
+          status={row.status}
+        />
+      ),
+    },
     {
       header: "تاریخ و زمان",
       accessor: "date",
     },
-
-   {
-  header: "عملیات",
-
-  accessor: (row) => (
-    <TransactionTableActions
-      transaction={row}
-    />
-  ),
-
-  cellClassName: "text-center",
-}
+    {
+      header: "عملیات",
+      accessor: (row) => (
+        <TransactionTableActions
+          transaction={row}
+        />
+      ),
+      cellClassName: "text-center",
+    },
   ];
+
+  const tableData = data.map(mapTransaction);
 
   return (
     <ReusableTable
       title="تراکنش‌ها"
-      data={transactionTableData}
+      data={tableData}
       columns={columns}
       enableFilter
       enablePagination
       itemsPerPage={10}
+      isLoading={isLoading}
+      currentPage={currentPage}
+      totalPages={totalPages}
+      onPageChange={onPageChange}
     />
   );
 }

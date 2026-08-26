@@ -1,10 +1,12 @@
 "use client";
 
-import { Plus } from "lucide-react";
-import { FormProvider, useForm } from "react-hook-form";
+import { Plus, Search } from "lucide-react";
+import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { FormScrollableSelectField } from "@/components/ui/FormScrollableSelectField";
+import { useEffect } from "react";
 
 type FilterForm = {
+  search: string;
   role: string;
   status: string;
 };
@@ -22,17 +24,51 @@ const statusOptions = [
   { label: "غیرفعال", value: "inactive" },
 ];
 
-export default function AdminUserManagementToolbar() {
+interface Props {
+  onSearch: (q: string) => void;
+  onRoleFilter: (role: string) => void;
+}
+
+export default function AdminUserManagementToolbar({
+  onSearch,
+  onRoleFilter,
+}: Props) {
   const methods = useForm<FilterForm>({
     defaultValues: {
+      search: "",
       role: "",
       status: "",
     },
   });
 
+  const searchValue = useWatch({ control: methods.control, name: "search" });
+  const roleValue = useWatch({ control: methods.control, name: "role" });
+
+  useEffect(() => {
+    onSearch(searchValue ?? "");
+  }, [searchValue, onSearch]);
+
+  useEffect(() => {
+    onRoleFilter(roleValue ?? "");
+  }, [roleValue, onRoleFilter]);
+
   return (
     <FormProvider {...methods}>
       <div className="flex flex-wrap items-end gap-6 p-6 border-gray-100">
+        <div className="w-52">
+          <label className="mb-1 block text-xs font-medium text-gray-600">
+            جستجو
+          </label>
+          <div className="relative">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="جستجوی کاربر..."
+              className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pr-9 pl-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              {...methods.register("search")}
+            />
+          </div>
+        </div>
 
         <div className="w-52">
           <FormScrollableSelectField
@@ -65,7 +101,6 @@ export default function AdminUserManagementToolbar() {
             افزودن کاربر جدید
           </button>
         </div>
-
       </div>
     </FormProvider>
   );

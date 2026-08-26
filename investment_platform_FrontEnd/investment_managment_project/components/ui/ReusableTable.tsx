@@ -49,6 +49,7 @@ type ReusableTableProps<T> = {
   enablePagination?: boolean;
   itemsPerPage?: number;
   currentPage?: number;
+  totalPages?: number;
   onPageChange?: (page: number) => void;
 
   isLoading?: boolean;
@@ -65,6 +66,7 @@ export function ReusableTable<T extends object>({
   enablePagination = false,
   itemsPerPage = 10,
   currentPage: externalCurrentPage,
+  totalPages: externalTotalPages,
   onPageChange,
   isLoading = false,
 }: ReusableTableProps<T>) {
@@ -90,6 +92,10 @@ export function ReusableTable<T extends object>({
   const getPaginatedData = (): T[] => {
     if (!enablePagination) return sortedData;
 
+    if (externalTotalPages !== undefined) {
+      return sortedData;
+    }
+
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
 
@@ -97,7 +103,7 @@ export function ReusableTable<T extends object>({
   };
 
   const paginatedData = getPaginatedData();
-  const totalPages = Math.ceil(sortedData.length / itemsPerPage);
+  const totalPages = externalTotalPages ?? Math.ceil(sortedData.length / itemsPerPage);
 
   const setCurrentPage = (page: number): void => {
     if (onPageChange) {

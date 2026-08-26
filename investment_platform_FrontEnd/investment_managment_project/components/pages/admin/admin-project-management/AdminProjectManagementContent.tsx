@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import Container from "@/components/ui/Container";
 
@@ -8,48 +8,56 @@ import AdminProjectManagementHeader from "@/components/pages/admin/admin-project
 import AdminProjectManagementFilter from "@/components/pages/admin/admin-project-management/AdminProjectFilterSection";
 import AdminProjectTable from "@/components/pages/admin/admin-project-management/AdminProjectTable";
 
-import { adminProjectManagementData } from "@/lib/constants/admin/admin-project-management/AdminProjectTable";
-
+import { AdminProject } from "@/lib/api/services/admin.service";
 import { AdminProjectManagementFilterForm } from "@/lib/types/admin/admin-poject-management/AdminProjectManagementFilter";
+import { AdminProjectManagementRow, AdminProjectManagementStatus } from "@/lib/types/admin/admin-poject-management/AdminProjectTable";
 
-export default function Page() {
-  const [filters, setFilters] =
-    useState<AdminProjectManagementFilterForm>({
-      search: "",
-      status: "all",
-      owner: "all",
-      registerDate: "",
-    });
+interface Props {
+  data: AdminProject[];
+  isLoading: boolean;
+  totalPages: number;
+  currentPage: number;
+  onPageChange: (page: number) => void;
+  onFilter: (newFilters: AdminProjectManagementFilterForm) => void;
+}
 
+function mapStatus(status: string): AdminProjectManagementStatus {
+  if (status === "pending" || status === "approved" || status === "rejected") {
+    return status;
+  }
+  return "pending";
+}
+
+function mapProject(p: AdminProject): AdminProjectManagementRow {
+  return {
+    id: p.id,
+    name: p.title,
+    owner: p.owner.username || p.owner.phone_number,
+    category: p.category_display || p.category,
+    date: p.created_at,
+    amount: Number(p.required_budget) || 0,
+    status: mapStatus(p.status),
+  };
+}
+
+export default function AdminProjectManagementContent({
+  data,
+  isLoading,
+  totalPages,
+  currentPage,
+  onPageChange,
+  onFilter,
+}: Props) {
   const filteredProjects = useMemo(() => {
-    return adminProjectManagementData.filter((project) => {
-      const matchesSearch =
-        !filters.search ||
-        project.name.includes(filters.search) ||
-        project.id.includes(filters.search);
-
-      const matchesStatus =
-        filters.status === "all" ||
-        project.status === filters.status;
-
-      const matchesOwner =
-        filters.owner === "all" ||
-        project.owner === filters.owner;
-
-      return (
-        matchesSearch &&
-        matchesStatus &&
-        matchesOwner
-      );
-    });
-  }, [filters]);
+    return data.map(mapProject);
+  }, [data]);
 
   return (
     <Container>
       <AdminProjectManagementHeader />
 
       <AdminProjectManagementFilter
-        onFilterChange={setFilters}
+        onFilterChange={onFilter}
       />
 
       <AdminProjectTable
