@@ -22,13 +22,14 @@ const CATEGORY_MAP: Record<string, string> = {
   technology: "TECHNOLOGY",
   industry: "INDUSTRY",
   agriculture: "AGRICULTURE",
+  health: "HEALTH",
+  services: "SERVICES",
 };
 
-// ── تبدیل فرم به FormData برای ارسال به بک‌اند ───────────────────────────────
+// ── تبدیل فرم به FormData ─────────────────────────────────────────────────────
 function buildFormData(data: CreateProjectFormValues): FormData {
   const fd = new FormData();
 
-  // فیلدهای متنی - mapping نام فیلد فرانت → بک‌اند
   fd.append("title", data.projectName);
   fd.append("description", data.fullDesc);
   fd.append("category", CATEGORY_MAP[data.category] ?? "OTHER");
@@ -37,10 +38,14 @@ function buildFormData(data: CreateProjectFormValues): FormData {
   fd.append("start_date", data.startDate);
   fd.append("end_date", data.endDate);
 
-  // فایل cover_image (اگر وجود داشت)
-  if (data.documents && data.documents.length > 0) {
-    fd.append("cover_image", data.documents[0]);
+  // ── cover_image جداگانه — فقط اگر انتخاب شده باشد ──────────────────────
+  if (data.coverImage instanceof File) {
+    fd.append("cover_image", data.coverImage);
   }
+
+  // ── اسناد — هیچ‌کدام به عنوان cover ارسال نمی‌شوند ────────────────────────
+  // اسناد از طریق endpoint جداگانه /projects/{id}/documents/ آپلود می‌شوند
+  // و در این مرحله ارسال نمی‌شوند
 
   return fd;
 }
@@ -65,6 +70,7 @@ export default function CreateNewProjectForm() {
       startDate: "",
       endDate: "",
       duration: 0,
+      coverImage: null,
       documents: [],
     },
   });
@@ -73,27 +79,25 @@ export default function CreateNewProjectForm() {
   const createMutation = useMutation({
     mutationFn: (formData: FormData) =>
       projectsService.createProject(formData),
-    onSuccess: (createdProject) => {
-      // بازنشانی کش داشبورد و لیست پروژه‌ها
+
+    onSuccess: async (createdProject, formData) => {
+      // آپلود اسناد جداگانه اگر وجود داشتند
+      // (در این نسخه documents از فرم حذف شده — برای فاز بعد)
+
       queryClient.invalidateQueries({ queryKey: OWNER_DASHBOARD_KEY });
-      queryClient.invalidateQueries({
-        queryKey: ["owner", "my-projects"],
-      });
-      // redirect به صفحه جزئیات پروژه
+      queryClient.invalidateQueries({ queryKey: ["owner", "my-projects"] });
       router.push(`/project-details?id=${createdProject.id}`);
+    },
+
+    onError: (error) => {
+      console.error("خطا در ثبت پروژه:", error);
     },
   });
 
-  // ── submit نهایی ──────────────────────────────────────────────────────────
+  // ── submit ────────────────────────────────────────────────────────────────
   const onSubmit = (data: CreateProjectFormValues) => {
     createMutation.mutate(buildFormData(data));
   };
-
-  // ── ذخیره پیش‌نویس ───────────────────────────────────────────────────────
-  const onSaveDraft = handleSubmit((data) => {
-    // بک‌اند به صورت پیش‌فرض وضعیت DRAFT ایجاد می‌کند
-    createMutation.mutate(buildFormData(data));
-  });
 
   const isPending = createMutation.isPending || isSubmitting;
 
@@ -120,11 +124,11 @@ export default function CreateNewProjectForm() {
           <div className="flex justify-end gap-4 bg-gray-50 p-6 lg:p-8 dark:bg-white/5">
             <button
               type="button"
-              onClick={onSaveDraft}
+              onClick={() => router.back()}
               disabled={isPending}
               className="h-11 rounded-lg border border-gray-200 px-6 text-text-main disabled:opacity-50 dark:border-[#3d384e]"
             >
-              ذخیره پیش‌نویس
+              انصراف
             </button>
 
             <button
