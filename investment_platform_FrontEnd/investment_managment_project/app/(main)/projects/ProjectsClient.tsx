@@ -12,16 +12,7 @@ import { ProjectFilters } from "@/lib/types/project-filters";
 import { BackendProject } from "@/lib/api/services/projects.service";
 
 // ── helper: ساخت URL کامل تصویر ──────────────────────────────────────────────
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-
-function resolveImageUrl(url: string | null | undefined): string {
-  if (!url) return "/images/img-1.png";
-  // اگر URL کامل است (http/https) مستقیم برگردان
-  if (url.startsWith("http://") || url.startsWith("https://")) return url;
-  // اگر نسبی است، base را اضافه کن
-  return `${BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
-}
+import { resolveImageUrl } from "@/lib/utils/image.utils";
 
 // ── helper: نمایش نام مالک ───────────────────────────────────────────────────
 function resolveOwnerName(owner: BackendProject["owner"]): string {
