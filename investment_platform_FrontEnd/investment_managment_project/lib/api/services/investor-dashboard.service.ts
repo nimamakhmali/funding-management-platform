@@ -183,14 +183,20 @@ export const investorService = {
   },
 
   // پروژه‌های قابل سرمایه‌گذاری
-  getInvestableProjects: async (
-    params?: ProjectListParams
-  ): Promise<PaginatedProjects> => {
-    const res = await axiosInstance.get("/projects/", {
-      params: { ...params, status: "FUNDING" },
-    });
-    return unwrap<PaginatedProjects>(res);
-  },
+// پروژه‌های قابل سرمایه‌گذاری — status APPROVED یا FUNDING
+getInvestableProjects: async (
+  params?: ProjectListParams
+): Promise<PaginatedProjects> => {
+  const res = await axiosInstance.get("/projects/", {
+    params: {
+      ...params,
+      // APPROVED: تأیید شده و آماده سرمایه‌گذاری
+      // FUNDING: در حال جذب سرمایه
+      status: params?.status ?? "APPROVED",
+    },
+  });
+  return unwrap<PaginatedProjects>(res);
+},
 
   // ── سرمایه‌گذاری‌های من (endpoint جدید) ──────────────────────────────────
   getMyInvestmentsList: async (params?: {
