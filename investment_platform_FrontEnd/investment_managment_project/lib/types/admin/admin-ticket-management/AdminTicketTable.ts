@@ -2,11 +2,9 @@ import { ReactNode } from "react";
 
 // مطابق با مقادیر واقعی backend
 export type TicketStatus =
-  | "OPEN"
-  | "IN_PROGRESS"
-  | "CLOSED"
-  | "USER_REPLIED"
-  | "ADMIN_REPLIED";
+  | "waiting"
+  | "processing"
+  | "closed";
 
 export type TicketPriority =
   | "HIGH"

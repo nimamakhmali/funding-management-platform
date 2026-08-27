@@ -12,8 +12,8 @@ export default function TicketTable({ data }: { data: Ticket[] }) {
       header: "شناسه",
       accessor: (row) => (
         <span className="text-sm font-medium text-gray-400 font-display">
-          {/* نمایش کوتاه‌شده — اما id کامل برای عملیات استفاده می‌شود */}
-          {row.displayId}
+          {/* اگر displayId موجود بود نمایش بده، وگرنه id را نشان بده */}
+          {row.displayId ?? row.id}
         </span>
       ),
       cellClassName: "px-6 py-4 whitespace-nowrap",
@@ -67,7 +67,7 @@ export default function TicketTable({ data }: { data: Ticket[] }) {
     },
     {
       header: "اقدام",
-      // row.id = UUID کامل → درست به backend می‌رود
+      // row.id همیشه UUID کامل یا mock id است — برای routing درست است
       accessor: (row) => <TicketTableActions ticketId={row.id} />,
       cellClassName: "px-6 py-4 whitespace-nowrap text-center",
     },

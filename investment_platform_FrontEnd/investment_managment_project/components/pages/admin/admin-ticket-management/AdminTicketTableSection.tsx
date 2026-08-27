@@ -29,16 +29,11 @@ function mapPriority(priority: string): TicketPriority {
 }
 
 function mapStatus(status: string): TicketStatus {
-  const valid: TicketStatus[] = [
-    "OPEN",
-    "IN_PROGRESS",
-    "CLOSED",
-    "USER_REPLIED",
-    "ADMIN_REPLIED",
-  ];
-  return valid.includes(status as TicketStatus)
-    ? (status as TicketStatus)
-    : "OPEN";
+  if (status === "CLOSED") return "closed";
+  if (status === "IN_PROGRESS" || status === "USER_REPLIED" || status === "ADMIN_REPLIED") {
+    return "processing";
+  }
+  return "waiting";
 }
 
 function mapTicket(t: AdminTicket, index: number): TicketTableItem {

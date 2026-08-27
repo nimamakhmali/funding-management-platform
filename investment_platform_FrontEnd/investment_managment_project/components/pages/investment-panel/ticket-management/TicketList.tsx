@@ -56,11 +56,12 @@ export default function TicketList() {
     const raw = (data?.results ?? []).map(mapTicket);
 
     return raw.filter((ticket) => {
+      const searchLower = (search ?? "").toLowerCase();
       const matchesSearch =
         !search ||
-        ticket.title.includes(search) ||
-        ticket.id.includes(search) ||
-        ticket.displayId.includes(search.toUpperCase()); // ← جستجو با کد کوتاه هم کار کند
+        ticket.title.toLowerCase().includes(searchLower) ||
+        ticket.id.toLowerCase().includes(searchLower) ||
+        (ticket.displayId ?? "").toLowerCase().includes(searchLower);
       const matchesStatus =
         status === "all" || ticket.status === status;
       return matchesSearch && matchesStatus;

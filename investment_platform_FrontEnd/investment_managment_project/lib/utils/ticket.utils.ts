@@ -63,10 +63,8 @@ export function mapMessage(
 
 export function mapTicket(t: BackendTicket): Ticket {
   return {
-    // ← UUID کامل برای routing — نه slice شده
-    id: t.id,
-    // ← فقط برای نمایش در جدول: ۸ کاراکتر اول
-    displayId: t.id.slice(0, 8).toUpperCase(),
+    id: t.id,                                    // UUID کامل — برای routing
+    displayId: t.id.slice(0, 8).toUpperCase(),   // نمایشی — در جدول
     title: t.subject,
     department: "پشتیبانی",
     status: STATUS_MAP[t.status] ?? "open",
