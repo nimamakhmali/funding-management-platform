@@ -18,7 +18,7 @@ import type {
 // ── نگاشت وضعیت بک‌اند → فرانت ──────────────────────────────────────────────
 const STATUS_MAP: Record<BackendTicketStatus, TicketStatus> = {
   OPEN: "open",
-  IN_PROGRESS: "in_progress",   // اضافه شد
+  IN_PROGRESS: "in_progress",
   USER_REPLIED: "in_progress",
   ADMIN_REPLIED: "in_progress",
   CLOSED: "closed",
@@ -26,25 +26,22 @@ const STATUS_MAP: Record<BackendTicketStatus, TicketStatus> = {
 
 const STATUS_LABEL: Record<BackendTicketStatus, string> = {
   OPEN: "باز",
-  IN_PROGRESS: "در حال بررسی",  // اضافه شد
+  IN_PROGRESS: "در حال بررسی",
   USER_REPLIED: "منتظر پاسخ",
   ADMIN_REPLIED: "پاسخ داده شده",
   CLOSED: "بسته شده",
 };
 
-// ── نگاشت اولویت بک‌اند → فرانت ─────────────────────────────────────────────
 const PRIORITY_MAP: Record<BackendTicketPriority, TicketPriority> = {
   LOW: "low",
   MEDIUM: "medium",
   HIGH: "high",
 };
 
-// ── تبدیل تاریخ میلادی → شمسی ─────────────────────────────────────────────
 function toJalali(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("fa-IR");
 }
 
-// ── تبدیل پیام ───────────────────────────────────────────────────────────────
 export function mapMessage(
   msg: BackendTicketMessage,
   currentUserId: string
@@ -64,10 +61,12 @@ export function mapMessage(
   };
 }
 
-// ── تبدیل تیکت لیست ──────────────────────────────────────────────────────────
 export function mapTicket(t: BackendTicket): Ticket {
   return {
-    id: t.id.slice(0, 8).toUpperCase(),
+    // ← UUID کامل برای routing — نه slice شده
+    id: t.id,
+    // ← فقط برای نمایش در جدول: ۸ کاراکتر اول
+    displayId: t.id.slice(0, 8).toUpperCase(),
     title: t.subject,
     department: "پشتیبانی",
     status: STATUS_MAP[t.status] ?? "open",
@@ -77,7 +76,6 @@ export function mapTicket(t: BackendTicket): Ticket {
   };
 }
 
-// ── تبدیل تیکت جزئیات ────────────────────────────────────────────────────────
 export function mapTicketDetail(
   t: BackendTicketDetail,
   currentUserId: string

@@ -59,7 +59,8 @@ export default function TicketList() {
       const matchesSearch =
         !search ||
         ticket.title.includes(search) ||
-        ticket.id.includes(search);
+        ticket.id.includes(search) ||
+        ticket.displayId.includes(search.toUpperCase()); // ← جستجو با کد کوتاه هم کار کند
       const matchesStatus =
         status === "all" || ticket.status === status;
       return matchesSearch && matchesStatus;

@@ -1,7 +1,6 @@
 "use client";
 
 import { Column, ReusableTable } from "@/components/ui/ReusableTable";
-
 import { Ticket } from "@/lib/types/investment-panel/ticket-management/Ticket";
 import TicketStatusBadge from "./TicketStatusBadge";
 import TicketPriorityBadge from "./TicketPriorityBadge";
@@ -13,7 +12,8 @@ export default function TicketTable({ data }: { data: Ticket[] }) {
       header: "شناسه",
       accessor: (row) => (
         <span className="text-sm font-medium text-gray-400 font-display">
-          {row.id}
+          {/* نمایش کوتاه‌شده — اما id کامل برای عملیات استفاده می‌شود */}
+          {row.displayId}
         </span>
       ),
       cellClassName: "px-6 py-4 whitespace-nowrap",
@@ -67,6 +67,7 @@ export default function TicketTable({ data }: { data: Ticket[] }) {
     },
     {
       header: "اقدام",
+      // row.id = UUID کامل → درست به backend می‌رود
       accessor: (row) => <TicketTableActions ticketId={row.id} />,
       cellClassName: "px-6 py-4 whitespace-nowrap text-center",
     },
