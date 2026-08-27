@@ -5,6 +5,7 @@ import { useMyProjects } from "@/lib/hooks/useOwnerDashboard";
 import { TablePagination } from "@/components/ui/TablePagination";
 import ProjectCard from "../../main/projects/ProjectsGrid/ProjectCard";
 import { BackendProject } from "@/lib/api/services/projects.service";
+import { resolveImageUrl } from "@/lib/utils/image.utils"; // ← اضافه شد
 
 function toUIProject(p: BackendProject) {
   return {
@@ -15,7 +16,7 @@ function toUIProject(p: BackendProject) {
     shortDescription: p.description?.slice(0, 120) ?? "",
     industry: p.category_display,
     category: p.category_display,
-    image: p.cover_image_url ?? "/images/img-1.png",
+    image: resolveImageUrl(p.cover_image_url), // ← تغییر کرد
     status: mapStatus(p.status),
     progress: parseFloat(p.funding_percentage) || 0,
     targetAmount: parseFloat(p.required_budget) || 0,
