@@ -18,6 +18,7 @@ import type {
 // ── نگاشت وضعیت بک‌اند → فرانت ──────────────────────────────────────────────
 const STATUS_MAP: Record<BackendTicketStatus, TicketStatus> = {
   OPEN: "open",
+  IN_PROGRESS: "in_progress",   // اضافه شد
   USER_REPLIED: "in_progress",
   ADMIN_REPLIED: "in_progress",
   CLOSED: "closed",
@@ -25,6 +26,7 @@ const STATUS_MAP: Record<BackendTicketStatus, TicketStatus> = {
 
 const STATUS_LABEL: Record<BackendTicketStatus, string> = {
   OPEN: "باز",
+  IN_PROGRESS: "در حال بررسی",  // اضافه شد
   USER_REPLIED: "منتظر پاسخ",
   ADMIN_REPLIED: "پاسخ داده شده",
   CLOSED: "بسته شده",
@@ -51,7 +53,7 @@ export function mapMessage(
   return {
     id: msg.id,
     sender: isUser ? "user" : "agent",
-    authorName: msg.sender.username,
+    authorName: msg.sender.full_name || msg.sender.phone_number,
     time: new Date(msg.created_at).toLocaleTimeString("fa-IR", {
       hour: "2-digit",
       minute: "2-digit",
