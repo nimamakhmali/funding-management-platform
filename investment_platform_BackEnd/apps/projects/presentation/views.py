@@ -101,7 +101,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         qs = Project.objects.select_related("owner").annotate(
             _investors_count=Subquery(
                 successful_investments,
-                output_field=models.IntegerField(),
+                output_field=IntegerField(),
             )
         ).prefetch_related(
             Prefetch(

@@ -190,7 +190,7 @@ export const investorService = {
   ): Promise<PaginatedProjects> => {
     // اگر status صراحتاً از بیرون آمده آن را ارسال کن
     // در غیر این صورت APPROVED,FUNDING را بفرست تا هر دو وضعیت گرفته شود
-    const statusParam = params?.status ?? "APPROVED,FUNDING";
+    const statusParam = params?.status ?? "APPROVED";
 
     const res = await axiosInstance.get("/projects/", {
       params: {

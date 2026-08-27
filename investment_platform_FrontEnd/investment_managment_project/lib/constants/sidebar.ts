@@ -24,7 +24,7 @@ export const SIDEBARE_ITEMS: Sidebar[] = [
      subItems: [
       { id: "investment-projects",
         title: "سرمایه گذاری در پروژه",
-        href: "/invest-project/investment-projects", 
+        href: "/invest-project", 
       },
     ]
   },
