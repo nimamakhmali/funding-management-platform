@@ -89,7 +89,7 @@ export default function MyProjectsBody() {
           <ProjectCard
             key={project.id}
             project={project}
-            detailsHref="/project-details"
+            detailsHref={`/project-details?id=${project.id}`}
           />
         ))}
       </div>
