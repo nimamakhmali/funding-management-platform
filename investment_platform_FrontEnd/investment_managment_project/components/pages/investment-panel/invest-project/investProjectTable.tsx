@@ -4,6 +4,17 @@ import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
 import type { MyInvestment } from "@/lib/api/services/investor-dashboard.service"
 
+<<<<<<< HEAD
+||||||| parent of 69a9335e (update localserver)
+type InvestProject = typeof INVEST_PROJECT_PAGE_TABLES[number]
+
+const getReturnColor = (returnRate: string) => {
+  if (returnRate.startsWith("+")) return "text-green-600"
+  if (returnRate.startsWith("-")) return "text-red-600"
+  return "text-gray-600"
+=======
+// نگاشت وضعیت backend → فارسی برای نمایش
+>>>>>>> 69a9335e (update localserver)
 const STATUS_LABEL: Record<string, string> = {
   PENDING_PAYMENT: "در انتظار پرداخت",
   SUCCESSFUL: "موفق",
@@ -74,4 +85,11 @@ export const INVEST_PROJECT_COLUMNS: Column<MyInvestment>[] = [
       </Link>
     ),
   },
+<<<<<<< HEAD
 ]
+||||||| parent of 69a9335e (update localserver)
+  }
+]
+=======
+]
+>>>>>>> 69a9335e (update localserver)
