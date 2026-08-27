@@ -1,4 +1,4 @@
-from django.db.models import Q, Prefetch, Sum, Count
+from django.db.models import Q, Prefetch, Sum, Count, OuterRef, Subquery , IntegerField
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import permissions, viewsets
@@ -63,7 +63,7 @@ ACTIVE_STATUSES = [
 )
 class ProjectViewSet(viewsets.ModelViewSet):
     owner_field = "owner_id"
-    
+
     def get_serializer_class(self):
         if self.action in {"create", "update", "partial_update"}:
             return ProjectCreateSerializer
@@ -81,12 +81,29 @@ class ProjectViewSet(viewsets.ModelViewSet):
             return [permissions.IsAuthenticated(), IsProjectOwnerOrAdmin()]
         if self.action == "change_status":
             return [permissions.IsAuthenticated(), IsOperatorOrAdmin()]
-        if self.action == "owner_dashboard":
+        if self.action in {"owner_dashboard", "owner_reports", "owner_monthly_stats"}:
             return [permissions.IsAuthenticated(), IsEntrepreneur()]
         return [permissions.IsAuthenticated()]
 
     def get_queryset(self):
-        qs = Project.objects.select_related("owner").prefetch_related(
+        # --- subquery برای investors_count بدون N+1 ---
+        successful_investments = (
+            Investment.objects
+            .filter(
+                project=OuterRef("pk"),
+                status=InvestmentStatus.SUCCESSFUL,
+            )
+            .values("project")
+            .annotate(cnt=Count("id"))
+            .values("cnt")
+        )
+
+        qs = Project.objects.select_related("owner").annotate(
+            _investors_count=Subquery(
+                successful_investments,
+                output_field=models.IntegerField(),
+            )
+        ).prefetch_related(
             Prefetch(
                 "investments",
                 queryset=Investment.objects.filter(
@@ -124,8 +141,16 @@ class ProjectViewSet(viewsets.ModelViewSet):
             )
 
         p = req.query_params
-        if p.get("status"):
-            qs = qs.filter(status=p["status"])
+
+        # فیلتر status — اگر چند وضعیت با کاما آمد همه را بگیر
+        raw_status = p.get("status", "").strip()
+        if raw_status:
+            statuses = [s.strip() for s in raw_status.split(",") if s.strip()]
+            if len(statuses) == 1:
+                qs = qs.filter(status=statuses[0])
+            elif len(statuses) > 1:
+                qs = qs.filter(status__in=statuses)
+
         if p.get("category"):
             qs = qs.filter(category=p["category"])
         if p.get("q"):
@@ -160,10 +185,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
         permission_classes=[permissions.IsAuthenticated, IsEntrepreneur],
     )
     def owner_dashboard(self, request):
-        """
-        یک endpoint واحد که تمام داده‌های مورد نیاز
-        داشبورد صاحب طرح را برمی‌گرداند.
-        """
         user = request.user
         my_projects = Project.objects.filter(owner=user).prefetch_related(
             Prefetch(
@@ -174,25 +195,21 @@ class ProjectViewSet(viewsets.ModelViewSet):
             )
         )
 
-        # ── آمار کلی ────────────────────────────────────────────────────────
         total_projects = my_projects.count()
         active_projects = my_projects.filter(
             status__in=ACTIVE_STATUSES
         ).count()
 
-        # کل سرمایه جذب‌شده از تمام پروژه‌ها
         total_raised = my_projects.aggregate(
             total=Sum("raised_amount")
         )["total"] or 0
 
-        # سود پیش‌بینی‌شده: مجموع (raised_amount * profit_rate / 100) برای پروژه‌های فعال
         active_qs = my_projects.filter(status__in=ACTIVE_STATUSES)
         expected_profit = sum(
             (p.raised_amount * (p.profit_rate_percentage or 0) / 100)
             for p in active_qs
         )
 
-        # سود تحقق‌یافته از PayoutItem های پرداخت‌شده
         try:
             from apps.profits.infrastructure.models import PayoutItem
             realized_profit = PayoutItem.objects.filter(
@@ -202,7 +219,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
         except Exception:
             realized_profit = 0
 
-        # ROI میانگین
         projects_with_profit = my_projects.filter(
             profit_rate_percentage__isnull=False,
             raised_amount__gt=0,
@@ -215,7 +231,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
             )
             roi = total_roi / projects_with_profit.count()
 
-        # ── فعال‌ترین پروژه ──────────────────────────────────────────────────
         most_active = (
             my_projects.filter(status__in=ACTIVE_STATUSES)
             .order_by("-raised_amount")
@@ -237,9 +252,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 "cover_image_url": most_active.cover_image_url,
             }
 
-        # ── ساختار پاسخ ─────────────────────────────────────────────────────
         data = {
-            # کارت‌های آماری
             "stats": {
                 "total_raised": str(total_raised),
                 "expected_profit": str(expected_profit),
@@ -248,7 +261,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 "total_projects": total_projects,
                 "active_projects": active_projects,
             },
-            # فعال‌ترین پروژه
             "most_active_project": active_project_data,
         }
 
@@ -313,8 +325,10 @@ class ProjectViewSet(viewsets.ModelViewSet):
             DocumentSerializer(doc, context={"request": request}).data,
             status_code=201,
         )
-        
-    @extend_schema(tags=["Projects"], summary="آمار کلی پلتفرم (عمومی)", responses={200: None})
+
+    @extend_schema(
+        tags=["Projects"], summary="آمار کلی پلتفرم (عمومی)", responses={200: None}
+    )
     @action(
         detail=False,
         methods=["get"],
@@ -322,14 +336,9 @@ class ProjectViewSet(viewsets.ModelViewSet):
         permission_classes=[permissions.AllowAny],
     )
     def platform_stats(self, request):
-        """
-        آمار کلی پلتفرم برای صفحه اصلی (landing page).
-        بدون نیاز به احراز هویت.
-        """
         from apps.investments.infrastructure.models import Investment, InvestmentStatus
         from apps.users.infrastructure.models import User
 
-        # تعداد سرمایه‌گذاران فعال (کاربران با نقش INVESTOR که سرمایه‌گذاری موفق دارند)
         total_investors = (
             Investment.objects
             .filter(status=InvestmentStatus.SUCCESSFUL)
@@ -338,17 +347,14 @@ class ProjectViewSet(viewsets.ModelViewSet):
             .count()
         )
 
-        # پروژه‌های موفق (تکمیل‌شده)
         successful_projects = Project.objects.filter(
             status=ProjectStatus.COMPLETED
         ).count()
 
-        # حجم کل تأمین مالی (مجموع raised_amount تمام پروژه‌ها)
         total_funded = Project.objects.aggregate(
             total=Sum("raised_amount")
         )["total"] or 0
 
-        # میانگین نرخ سود پروژه‌های فعال
         avg_profit_rate = (
             Project.objects
             .filter(
@@ -359,7 +365,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
             ["avg"] or 0
         )
 
-        # تعداد پروژه‌های در حال تأمین مالی
         active_funding = Project.objects.filter(
             status=ProjectStatus.FUNDING
         ).count()
@@ -372,19 +377,18 @@ class ProjectViewSet(viewsets.ModelViewSet):
             "active_funding_projects": active_funding,
         }
 
-        return success_response(data)    
-    
-    
+        return success_response(data)
+
     @extend_schema(
-    tags=["Projects"],
-    summary="گزارش جامع پروژه‌های صاحب طرح",
-    parameters=[
-        OpenApiParameter("date_from", OpenApiTypes.DATE, description="از تاریخ"),
-        OpenApiParameter("date_to", OpenApiTypes.DATE, description="تا تاریخ"),
-        OpenApiParameter("project_id", OpenApiTypes.UUID, description="فیلتر پروژه خاص"),
-        OpenApiParameter("report_type", OpenApiTypes.STR, description="نوع گزارش"),
-    ],
-    responses={200: None},
+        tags=["Projects"],
+        summary="گزارش جامع پروژه‌های صاحب طرح",
+        parameters=[
+            OpenApiParameter("date_from", OpenApiTypes.DATE, description="از تاریخ"),
+            OpenApiParameter("date_to", OpenApiTypes.DATE, description="تا تاریخ"),
+            OpenApiParameter("project_id", OpenApiTypes.UUID, description="فیلتر پروژه خاص"),
+            OpenApiParameter("report_type", OpenApiTypes.STR, description="نوع گزارش"),
+        ],
+        responses={200: None},
     )
     @action(
         detail=False,
@@ -393,17 +397,9 @@ class ProjectViewSet(viewsets.ModelViewSet):
         permission_classes=[permissions.IsAuthenticated, IsEntrepreneur],
     )
     def owner_reports(self, request):
-        """
-        گزارش جامع برای پنل صاحب طرح:
-        - آمار کارت‌ها
-        - جدول پروژه‌ها
-        - داده نمودار وضعیت پروژه‌ها
-        - داده نمودار مقایسه‌ای
-        """
         user = request.user
         p = request.query_params
 
-        # فیلتر پایه
         qs = Project.objects.filter(owner=user).prefetch_related(
             Prefetch(
                 "investments",
@@ -413,7 +409,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
             )
         )
 
-        # فیلتر تاریخ
         date_from = p.get("date_from")
         date_to = p.get("date_to")
         if date_from:
@@ -427,14 +422,12 @@ class ProjectViewSet(viewsets.ModelViewSet):
             except Exception:
                 pass
 
-        # فیلتر پروژه خاص
         project_id = p.get("project_id")
         if project_id:
             qs = qs.filter(id=project_id)
 
         projects = list(qs.order_by("-created_at"))
 
-        # ── آمار کارت‌ها ────────────────────────────────────────────────────────
         total_projects = len(projects)
         active_count = sum(1 for proj in projects if proj.status in ACTIVE_STATUSES)
         total_raised = sum(proj.raised_amount for proj in projects)
@@ -445,17 +438,15 @@ class ProjectViewSet(viewsets.ModelViewSet):
             if total_projects > 0 else 0
         )
 
-        # سود پرداخت‌شده
         try:
             from apps.profits.infrastructure.models import PayoutItem
             total_profit_paid = PayoutItem.objects.filter(
-                period__project__owner=user,
+                profit_period__project__owner=user,
                 status="PAID_TO_WALLET",
             ).aggregate(total=Sum("amount"))["total"] or 0
         except Exception:
             total_profit_paid = 0
 
-        # ── داده جدول ────────────────────────────────────────────────────────────
         table_data = []
         for proj in projects:
             table_data.append({
@@ -471,7 +462,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 "profit_rate": str(proj.profit_rate_percentage or 0),
             })
 
-        # ── داده نمودار وضعیت ─────────────────────────────────────────────────────
         from collections import Counter
         status_counts = Counter(proj.status for proj in projects)
         status_chart = [
@@ -483,7 +473,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
             for k, v in status_counts.items()
         ]
 
-        # ── داده نمودار مقایسه‌ای (raised vs target) ─────────────────────────────
         comparison_chart = [
             {
                 "name": proj.title[:20],
@@ -491,7 +480,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 "raised": float(proj.raised_amount),
                 "progress": round(float(proj.funding_percentage), 1),
             }
-            for proj in projects[:6]  # حداکثر ۶ پروژه
+            for proj in projects[:6]
         ]
 
         data = {
@@ -508,6 +497,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
             "comparison_chart": comparison_chart,
         }
 
+        # ← این return قبلاً فراموش شده بود
+        return success_response(data)
 
     @extend_schema(
         tags=["Projects"],

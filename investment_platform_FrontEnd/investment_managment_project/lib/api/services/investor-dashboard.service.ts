@@ -184,19 +184,22 @@ export const investorService = {
 
   // پروژه‌های قابل سرمایه‌گذاری
 // پروژه‌های قابل سرمایه‌گذاری — status APPROVED یا FUNDING
-getInvestableProjects: async (
-  params?: ProjectListParams
-): Promise<PaginatedProjects> => {
-  const res = await axiosInstance.get("/projects/", {
-    params: {
-      ...params,
-      // APPROVED: تأیید شده و آماده سرمایه‌گذاری
-      // FUNDING: در حال جذب سرمایه
-      status: params?.status ?? "APPROVED",
-    },
-  });
-  return unwrap<PaginatedProjects>(res);
-},
+  // پروژه‌های قابل سرمایه‌گذاری — APPROVED و FUNDING هر دو نمایش داده شوند
+  getInvestableProjects: async (
+    params?: ProjectListParams
+  ): Promise<PaginatedProjects> => {
+    // اگر status صراحتاً از بیرون آمده آن را ارسال کن
+    // در غیر این صورت APPROVED,FUNDING را بفرست تا هر دو وضعیت گرفته شود
+    const statusParam = params?.status ?? "APPROVED,FUNDING";
+
+    const res = await axiosInstance.get("/projects/", {
+      params: {
+        ...params,
+        status: statusParam,
+      },
+    });
+    return unwrap<PaginatedProjects>(res);
+  },
 
   // ── سرمایه‌گذاری‌های من (endpoint جدید) ──────────────────────────────────
   getMyInvestmentsList: async (params?: {

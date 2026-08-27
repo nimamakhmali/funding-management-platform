@@ -130,9 +130,17 @@ class Project(models.Model):
 
     @property
     def investors_count(self) -> int:
-        """تعداد سرمایه‌گذاران موفق"""
+        """
+        تعداد سرمایه‌گذاران موفق.
+        اگر از طریق annotate با _investors_count آمده باشد از cache استفاده می‌کند،
+        در غیر این صورت query مستقیم می‌زند.
+        """
+        # اگر از get_queryset با annotate آمده باشد
+        if hasattr(self, "_investors_count") and self._investors_count is not None:
+            return self._investors_count
+        # fallback برای موارد standalone
         return self.investments.filter(status="SUCCESSFUL").count()
-
+    
     @property
     def category_display(self) -> str:
         return self.get_category_display()

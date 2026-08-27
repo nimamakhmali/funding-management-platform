@@ -1054,6 +1054,7 @@ investment_platform_FrontEnd/
           truncateText.ts
         auth.utils.ts
         date-utils.ts
+        image.utils.ts
         Numberformat.ts
         separateThousands.ts
         ticket.utils.ts
@@ -2906,13 +2907,14 @@ class AdminMonthlyChartView(APIView):
 
         six_months_ago = timezone.now() - datetime.timedelta(days=180)
 
+        # ── Investment فیلد created_at ندارد — از invest_date استفاده می‌کنیم ──
         monthly = (
             Investment.objects
             .filter(
                 status=InvestmentStatus.SUCCESSFUL,
-                created_at__gte=six_months_ago,
+                invest_date__gte=six_months_ago,   # ← تغییر: created_at → invest_date
             )
-            .annotate(month=TruncMonth("created_at"))
+            .annotate(month=TruncMonth("invest_date"))  # ← تغییر: created_at → invest_date
             .values("month")
             .annotate(total=Sum("amount"), count=Count("id"))
             .order_by("month")
@@ -11043,7 +11045,6 @@ export default function Page() {
 </file>
 
 <file path="investment_platform_FrontEnd/investment_managment_project/app/(admin)/admin-project-management/page.tsx">
-// app/(admin)/admin-project-management/page.tsx
 "use client";
 
 import { useState, useCallback } from "react";
@@ -11053,6 +11054,13 @@ import { useAdminProjects } from "@/lib/hooks/useAdmin";
 import { AdminProjectFilters } from "@/lib/api/services/admin.service";
 import { AdminProjectManagementFilterForm } from "@/lib/types/admin/admin-poject-management/AdminProjectManagementFilter";
 
+// mapping وضعیت فرانت → backend
+const STATUS_MAP: Record<string, string> = {
+  pending: "PENDING_REVIEW",
+  approved: "APPROVED",
+  rejected: "REJECTED",
+};
+
 export default function Page() {
   const [filters, setFilters] = useState<AdminProjectFilters>({
     page: 1,
@@ -11061,13 +11069,18 @@ export default function Page() {
 
   const { data, isLoading } = useAdminProjects(filters);
 
-  // useCallback برای جلوگیری از infinite loop
   const handleFilter = useCallback(
     (formValues: AdminProjectManagementFilterForm) => {
       setFilters((prev) => ({
         ...prev,
         q: formValues.search || undefined,
-        status: formValues.status !== "all" ? formValues.status : undefined,
+        // mapping وضعیت فرانت → backend
+        status:
+          formValues.status && formValues.status !== "all"
+            ? STATUS_MAP[formValues.status] ?? formValues.status
+            : undefined,
+        // owner فعلاً filter سمت backend پشتیبانی نمی‌شود (mock بود)
+        // date_from هم اضافه می‌شود اگر backend پشتیبانی کند
         page: 1,
       }));
     },
@@ -11094,10 +11107,9 @@ export default function Page() {
 </file>
 
 <file path="investment_platform_FrontEnd/investment_managment_project/app/(admin)/admin-system-activity-report-manegement/page.tsx">
-// app/(admin)/admin-system-activity-report-manegement/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import AdminAuditLogTable from "@/components/pages/admin/admin-system-activity-report-management/AdminAuditLogTable";
 import AdminSystemActivityFilterManagement from "@/components/pages/admin/admin-system-activity-report-management/AdminSystemActivityFilterSection";
 import AuditLogDetailsCard from "@/components/pages/admin/admin-system-activity-report-management/AuditLogDetailsCard";
@@ -11106,6 +11118,7 @@ import AdminSystemActivityHeader from "@/components/pages/admin/admin-system-act
 import { useAdminAuditLogs } from "@/lib/hooks/useAdmin";
 import { AdminAuditLogFilters } from "@/lib/api/services/admin.service";
 import { AdminAuditLogDetails } from "@/lib/types/admin/admin-system-activity-report-management/AdminAuditLogDetailsCard";
+import { AdminSystemActivityManagement } from "@/lib/types/admin/admin-system-activity-report-management/AdminSystemActivityManagement";
 
 export default function Page() {
   const [filters, setFilters] = useState<AdminAuditLogFilters>({
@@ -11116,25 +11129,65 @@ export default function Page() {
 
   const { data, isLoading } = useAdminAuditLogs(filters);
 
-  const selectedLog = data?.results?.find((l) => l.id === selectedLogId) ?? null;
+  const selectedLog =
+    data?.results?.find((l) => l.id === selectedLogId) ?? null;
 
-  // mapping بک‌اند → AdminAuditLogDetails
+  const handleFilter = useCallback(
+    (f: AdminSystemActivityManagement) => {
+      setFilters((prev) => ({
+        ...prev,
+        // trim و بررسی "all" و space
+        action_type:
+          f.adminSystemActivityType &&
+          f.adminSystemActivityType.trim() &&
+          f.adminSystemActivityType.trim() !== "all" &&
+          f.adminSystemActivityType.trim() !== " "
+            ? f.adminSystemActivityType.trim()
+            : undefined,
+        // date range
+        date_from:
+          f.dateRange && f.dateRange.trim() && f.dateRange.trim() !== " "
+            ? f.dateRange.trim()
+            : undefined,
+        page: 1,
+      }));
+    },
+    []
+  );
+
+  const handlePageChange = useCallback((page: number) => {
+    setFilters((prev) => ({ ...prev, page }));
+  }, []);
+
   const logDetails: AdminAuditLogDetails | null = selectedLog
     ? {
         id: selectedLog.id,
         changes: {
-          before: JSON.stringify(selectedLog.details?.before ?? {}, null, 2),
-          after: JSON.stringify(selectedLog.details?.after ?? {}, null, 2),
+          before: JSON.stringify(
+            selectedLog.details?.before ?? {},
+            null,
+            2
+          ),
+          after: JSON.stringify(
+            selectedLog.details?.after ?? {},
+            null,
+            2
+          ),
         },
         actor: {
-          name: selectedLog.user?.full_name || selectedLog.user?.phone_number || "سیستم",
+          name:
+            selectedLog.user?.full_name ||
+            selectedLog.user?.phone_number ||
+            "سیستم",
           role: "مدیر",
           ip: selectedLog.ip_address ?? "—",
           browser: "—",
         },
         metadata: {
           module: selectedLog.action_type,
-          time: selectedLog.created_at,
+          time: selectedLog.created_at
+            ? new Date(selectedLog.created_at).toLocaleDateString("fa-IR")
+            : "—",
         },
       }
     : null;
@@ -11142,25 +11195,13 @@ export default function Page() {
   return (
     <Container>
       <AdminSystemActivityHeader />
-      <AdminSystemActivityFilterManagement
-        onFilter={(f) =>
-          setFilters((prev) => ({
-            ...prev,
-            action_type:
-              f.adminSystemActivityType?.trim() &&
-              f.adminSystemActivityType.trim() !== " "
-                ? f.adminSystemActivityType.trim()
-                : undefined,
-            page: 1,
-          }))
-        }
-      />
+      <AdminSystemActivityFilterManagement onFilter={handleFilter} />
       <AdminAuditLogTable
         data={data?.results ?? []}
         isLoading={isLoading}
         totalPages={data?.total_pages ?? 1}
         currentPage={filters.page ?? 1}
-        onPageChange={(page) => setFilters((f) => ({ ...f, page }))}
+        onPageChange={handlePageChange}
         onSelectLog={setSelectedLogId}
         selectedLogId={selectedLogId}
       />
@@ -11171,7 +11212,6 @@ export default function Page() {
 </file>
 
 <file path="investment_platform_FrontEnd/investment_managment_project/app/(admin)/admin-ticket-manegement/page.tsx">
-// app/(admin)/admin-ticket-manegement/page.tsx
 "use client";
 
 import { useState, useCallback } from "react";
@@ -11201,6 +11241,17 @@ const TICKET_ASSIGNEES = [
   { id: 2, name: "پشتیبانی مالی", department: "مدیر مالی" },
 ];
 
+// تشخیص admin بودن فرستنده پیام
+function isAdminSender(sender: {
+  is_admin?: boolean;
+  role?: string;
+  phone_number?: string;
+}): boolean {
+  if (sender.is_admin === true) return true;
+  if (sender.role === "ADMIN" || sender.role === "admin") return true;
+  return false;
+}
+
 export default function TicketFilterSection() {
   const [filters, setFilters] = useState<AdminTicketFilters>({
     page: 1,
@@ -11211,14 +11262,17 @@ export default function TicketFilterSection() {
   const { data: ticketsData, isLoading } = useAdminTickets(filters);
   const { data: ticketDetail } = useAdminTicketDetail(selectedTicketId ?? "");
 
-  const handleFilter = useCallback((f: { status: string; priority: string; category: string }) => {
-    setFilters((prev) => ({
-      ...prev,
-      status: f.status !== "all" ? f.status : undefined,
-      priority: f.priority !== "all" ? f.priority : undefined,
-      page: 1,
-    }));
-  }, []);
+  const handleFilter = useCallback(
+    (f: { status: string; priority: string; category: string }) => {
+      setFilters((prev) => ({
+        ...prev,
+        status: f.status !== "all" ? f.status : undefined,
+        priority: f.priority !== "all" ? f.priority : undefined,
+        page: 1,
+      }));
+    },
+    []
+  );
 
   const handlePageChange = useCallback((page: number) => {
     setFilters((prev) => ({ ...prev, page }));
@@ -11229,16 +11283,24 @@ export default function TicketFilterSection() {
         id: ticketDetail.id,
         title: ticketDetail.subject,
         category: ticketDetail.priority || "عمومی",
-        createdAt: ticketDetail.created_at,
+        createdAt: ticketDetail.created_at
+          ? new Date(ticketDetail.created_at).toLocaleDateString("fa-IR")
+          : "—",
         messages: ticketDetail.messages.map(
           (m): TicketMessage => ({
             id: m.id,
             author: {
-              name: m.sender.full_name || m.sender.phone_number,
-              type: m.sender.is_admin ? "agent" : "customer",
+              // full_name اول، بعد phone_number
+              name:
+                m.sender.full_name ||
+                m.sender.phone_number ||
+                "کاربر",
+              type: isAdminSender(m.sender) ? "agent" : "customer",
             },
             message: m.message,
-            createdAt: m.created_at,
+            createdAt: m.created_at
+              ? new Date(m.created_at).toLocaleDateString("fa-IR")
+              : "—",
           })
         ),
       }
@@ -11248,7 +11310,10 @@ export default function TicketFilterSection() {
     ? {
         user: {
           id: ticketDetail.user.id,
-          name: ticketDetail.user.full_name || ticketDetail.user.phone_number || "کاربر",
+          name:
+            ticketDetail.user.full_name ||
+            ticketDetail.user.phone_number ||
+            "کاربر",
           level: ticketDetail.user.role || "عادی",
           openTickets: 1,
           avatar: "",
@@ -11281,7 +11346,10 @@ export default function TicketFilterSection() {
             />
           </div>
           <div className="xl:col-span-4">
-            <TicketSidebar data={sidebarData} ticketId={selectedTicketId} />
+            <TicketSidebar
+              data={sidebarData}
+              ticketId={selectedTicketId}
+            />
           </div>
         </div>
       )}
@@ -11291,7 +11359,6 @@ export default function TicketFilterSection() {
 </file>
 
 <file path="investment_platform_FrontEnd/investment_managment_project/app/(admin)/admin-transaction-management/page.tsx">
-// app/(admin)/admin-transaction-management/page.tsx
 "use client";
 
 import { useState, useCallback } from "react";
@@ -11310,16 +11377,23 @@ export default function Page() {
 
   const { data, isLoading } = useAdminTransactions(filters);
 
-  const handleFilter = useCallback((f: AdminTransactionFilterFormValues) => {
-    setFilters((prev) => ({
-      ...prev,
-      type: f.transaction !== "all" ? f.transaction : undefined,
-      min_amount: f.minPrice ?? undefined,
-      max_amount: f.maxPrice ?? undefined,
-      date_from: f.dateRange || undefined,
-      page: 1,
-    }));
-  }, []);
+  const handleFilter = useCallback(
+    (f: AdminTransactionFilterFormValues) => {
+      setFilters((prev) => ({
+        ...prev,
+        // فیلد transactionType در فرم، به type در API map می‌شود
+        type:
+          f.transactionType && f.transactionType !== "all"
+            ? f.transactionType
+            : undefined,
+        min_amount: f.minPrice ?? undefined,
+        max_amount: f.maxPrice ?? undefined,
+        date_from: f.dateRange && f.dateRange.trim() ? f.dateRange.trim() : undefined,
+        page: 1,
+      }));
+    },
+    []
+  );
 
   const handlePageChange = useCallback((page: number) => {
     setFilters((prev) => ({ ...prev, page }));
@@ -11997,50 +12071,59 @@ export default function Page({ params }: Props) {
 </file>
 
 <file path="investment_platform_FrontEnd/investment_managment_project/app/(investment-panel)/invest-project/InvestProjectsClient.tsx">
-// app/(investment-panel)/invest-project/InvestProjectsClient.tsx
 "use client";
 
 import { useState } from "react";
 import PanelContentHeader from "@/components/ui/PanelContentHeader";
-import { useInvestableProjects } from "@/lib/hooks/useInvestorDashboard";
-import { useWallet } from "@/lib/hooks/useInvestorDashboard";
+import { useInvestableProjects, useWallet } from "@/lib/hooks/useInvestorDashboard";
 import ProjectCard from "@/components/pages/main/projects/ProjectsGrid/ProjectCard";
 import { TablePagination } from "@/components/ui/TablePagination";
 import type { BackendProject } from "@/lib/api/services/projects.service";
 import Card from "@/components/ui/Card";
-import {
-  CircleDollarSign,
-  TrendingUp,
-  Wallet,
-  BarChart3,
-} from "lucide-react";
+import { resolveImageUrl } from "@/lib/utils/image.utils";
+import { CircleDollarSign, TrendingUp, Wallet, BarChart3 } from "lucide-react";
 
 const PAGE_SIZE = 6;
 
-// ── تبدیل پروژه بک‌اند به فرمت UI ───────────────────────────────────────────
+function resolveOwnerName(owner: BackendProject["owner"]): string {
+  if (!owner) return "—";
+  if ("full_name" in owner && owner.full_name) return owner.full_name as string;
+  if (
+    owner.username &&
+    !owner.username.startsWith("09") &&
+    owner.username !== owner.phone_number
+  ) {
+    return owner.username;
+  }
+  const phone = owner.phone_number ?? owner.username ?? "";
+  if (phone.length === 11) {
+    return `${phone.slice(0, 4)} *** ${phone.slice(7)}`;
+  }
+  return phone || "—";
+}
+
 function toUIProject(p: BackendProject) {
   return {
     id: p.id,
     title: p.title,
-    symbol: p.owner?.username ?? "",
-    description: p.description,
-    shortDescription: p.description?.slice(0, 120) ?? "",
-    industry: p.category_display,
-    category: p.category_display,
-    image: p.cover_image_url ?? "/images/img-1.png",
+    symbol: resolveOwnerName(p.owner),
+    description: p.description ?? "",
+    shortDescription: (p.description ?? "").slice(0, 120),
+    industry: p.category_display ?? "—",
+    category: p.category_display ?? "—",
+    image: resolveImageUrl(p.cover_image_url),  // ← اصلاح شد
     status: "active" as const,
     progress: parseFloat(p.funding_percentage) || 0,
     targetAmount: parseFloat(p.required_budget) || 0,
     fundedAmount: parseFloat(p.raised_amount) || 0,
-    investors: p.investors_count,
+    investors: p.investors_count ?? 0,
     profit: parseFloat(p.profit_rate_percentage ?? "0") || 0,
     chartData: [] as number[],
     projectCode: p.id.slice(0, 8).toUpperCase(),
-    remainingDays: p.remaining_days,
+    remainingDays: p.remaining_days ?? 0,
     minInvestment: parseFloat(p.min_investment_amount) || 0,
-    maxInvestment:
-      parseFloat(p.max_investment_amount ?? p.required_budget) || 0,
-    investmentPeriod: p.remaining_days,
+    maxInvestment: parseFloat(p.max_investment_amount ?? p.required_budget) || 0,
+    investmentPeriod: p.remaining_days ?? 0,
     paymentPeriod: "ماهانه",
     guarantee: "ضمانت‌نامه بانکی",
     documents: [],
@@ -12050,7 +12133,7 @@ function toUIProject(p: BackendProject) {
 export default function InvestProjectsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const { data: wallet } = useWallet();
-  const { data, isLoading } = useInvestableProjects({
+  const { data, isLoading, isError } = useInvestableProjects({
     page: currentPage,
     page_size: PAGE_SIZE,
   });
@@ -12061,7 +12144,6 @@ export default function InvestProjectsPage() {
   const balance = parseFloat(wallet?.available_balance ?? "0");
   const blocked = parseFloat(wallet?.blocked_amount ?? "0");
 
-  // کارت‌های آماری
   const statCards = [
     {
       id: 1,
@@ -12090,12 +12172,12 @@ export default function InvestProjectsPage() {
     {
       id: 4,
       title: "بازده میانگین",
-      value: projects.length
-        ? (
-            projects.reduce((s, p) => s + p.profit, 0) /
-            projects.length
-          ).toFixed(1)
-        : "۰",
+      value:
+        projects.length
+          ? (
+              projects.reduce((s, p) => s + p.profit, 0) / projects.length
+            ).toFixed(1)
+          : "۰",
       unit: "٪",
       icon: TrendingUp,
       color: "text-blue-500",
@@ -12132,11 +12214,12 @@ export default function InvestProjectsPage() {
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {Array.from({ length: PAGE_SIZE }).map((_, i) => (
-            <div
-              key={i}
-              className="h-80 rounded-2xl bg-gray-100 animate-pulse"
-            />
+            <div key={i} className="h-80 rounded-2xl bg-gray-100 animate-pulse" />
           ))}
+        </div>
+      ) : isError ? (
+        <div className="text-center py-16 text-red-500 text-sm">
+          خطا در بارگذاری پروژه‌ها. لطفاً دوباره تلاش کنید.
         </div>
       ) : projects.length === 0 ? (
         <div className="text-center py-16 text-gray-400 text-sm">
@@ -12686,29 +12769,59 @@ import { useQueryParams } from "@/lib/hooks/useQueryParams";
 import { ProjectFilters } from "@/lib/types/project-filters";
 import { BackendProject } from "@/lib/api/services/projects.service";
 
-// تبدیل داده بک‌اند به فرمت Project که کامپوننت‌های UI انتظار دارند
+// ── helper: ساخت URL کامل تصویر ──────────────────────────────────────────────
+import { resolveImageUrl } from "@/lib/utils/image.utils";
+
+// ── helper: نمایش نام مالک ───────────────────────────────────────────────────
+function resolveOwnerName(owner: BackendProject["owner"]): string {
+  if (!owner) return "—";
+  // اگر backend در آینده full_name اضافه کرد
+  if ("full_name" in owner && owner.full_name) {
+    return owner.full_name as string;
+  }
+  // اگر username واقعی دارد (نه شماره)
+  if (
+    owner.username &&
+    !owner.username.startsWith("09") &&
+    owner.username !== owner.phone_number
+  ) {
+    return owner.username;
+  }
+  // شماره موبایل را به فرمت خوانا نشان بده
+  const phone = owner.phone_number ?? owner.username ?? "";
+  if (phone.length === 11) {
+    // مثال: ۰۹۱۲ *** ۴۵۶۷
+    return `${phone.slice(0, 4)} *** ${phone.slice(7)}`;
+  }
+  return phone || "—";
+}
+
+// ── mapping اصلی ──────────────────────────────────────────────────────────────
 function toUIProject(p: BackendProject) {
   return {
     id: p.id,
     title: p.title,
-    symbol: p.owner?.username ?? "",
-    description: p.description,
-    shortDescription: p.description?.slice(0, 120) ?? "",
-    industry: p.category_display,
-    category: p.category_display,
-    image: p.cover_image_url ?? "/images/img-1.png",
+    // نمایش نام مالک به جای username/phone خام
+    symbol: resolveOwnerName(p.owner),
+    description: p.description ?? "",
+    shortDescription: (p.description ?? "").slice(0, 120),
+    industry: p.category_display ?? "—",
+    category: p.category_display ?? "—",
+    // URL کامل تصویر
+    image: resolveImageUrl(p.cover_image_url),
     status: mapStatus(p.status),
     progress: parseFloat(p.funding_percentage) || 0,
     targetAmount: parseFloat(p.required_budget) || 0,
     fundedAmount: parseFloat(p.raised_amount) || 0,
-    investors: p.investors_count,
+    investors: p.investors_count ?? 0,
     profit: parseFloat(p.profit_rate_percentage ?? "0") || 0,
     chartData: [] as number[],
     projectCode: p.id.slice(0, 8).toUpperCase(),
-    remainingDays: p.remaining_days,
+    remainingDays: p.remaining_days ?? 0,
     minInvestment: parseFloat(p.min_investment_amount) || 0,
-    maxInvestment: parseFloat(p.max_investment_amount ?? p.required_budget) || 0,
-    investmentPeriod: p.remaining_days,
+    maxInvestment:
+      parseFloat(p.max_investment_amount ?? p.required_budget) || 0,
+    investmentPeriod: p.remaining_days ?? 0,
     paymentPeriod: "ماهانه",
     guarantee: "ضمانت‌نامه بانکی",
     documents: [],
@@ -12717,9 +12830,13 @@ function toUIProject(p: BackendProject) {
 
 function mapStatus(s: string): "active" | "funded" | "closed" {
   const map: Record<string, "active" | "funded" | "closed"> = {
-    APPROVED: "active", FUNDING: "active", ACTIVE: "active",
-    FUNDING_COMPLETED: "funded", PROFIT_CALCULATION: "funded",
-    PROFIT_DISTRIBUTED: "funded", COMPLETED: "funded",
+    APPROVED: "active",
+    FUNDING: "active",
+    ACTIVE: "active",
+    FUNDING_COMPLETED: "funded",
+    PROFIT_CALCULATION: "funded",
+    PROFIT_DISTRIBUTED: "funded",
+    COMPLETED: "funded",
   };
   return map[s] ?? "closed";
 }
@@ -12734,7 +12851,9 @@ export default function ProjectsClient() {
     page_size: 12,
     ...(queryFilters.search ? { q: queryFilters.search } : {}),
     ...(queryFilters.status ? { status: queryFilters.status as never } : {}),
-    ...(queryFilters.industry ? { category: queryFilters.industry as never } : {}),
+    ...(queryFilters.industry
+      ? { category: queryFilters.industry as never }
+      : {}),
   });
 
   const projects = (data?.results ?? []).map(toUIProject);
@@ -13592,16 +13711,32 @@ export default function Footer() {
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { SearchBox } from "../ui/searchbox";
 import { Bell, MessageCircle } from "lucide-react";
 import { getPersianDate } from "@/lib/utils/date-utils";
+import { useNotifications } from "@/lib/hooks/useNotifications";
 
 export default function PanelHeader() {
   const [date, setDate] = useState<string>("");
+  const router = useRouter();
+
+  // دریافت تعداد notificationهای خوانده‌نشده
+  const { data: notifData } = useNotifications({ page: 1, page_size: 5 });
+  const unreadCount =
+    notifData?.results?.filter((n) => !n.is_read).length ?? 0;
 
   useEffect(() => {
     setDate(getPersianDate());
   }, []);
+
+  const handleBellClick = () => {
+    router.push("/notification");
+  };
+
+  const handleTicketClick = () => {
+    router.push("/admin-ticket-manegement");
+  };
 
   return (
     <header className="h-18 flex-shrink-0 w-full bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-8 z-20">
@@ -13611,17 +13746,32 @@ export default function PanelHeader() {
           داشبورد مالی
         </h2>
         <div className="h-6 w-px bg-gray-300 hidden md:block" />
-        <p className="text-gray-500 text-sm hidden md:block">
-          {date}
-        </p>
+        <p className="text-gray-500 text-sm hidden md:block">{date}</p>
       </div>
 
       <div className="flex items-center gap-3">
         <SearchBox onBlur={() => {}} />
-        <button className="size-10 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-500 hover:text-purple-600 transition-colors relative">
+
+        {/* زنگوله — نوتیفیکیشن */}
+        <button
+          onClick={handleBellClick}
+          title="اعلان‌ها"
+          className="size-10 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-500 hover:text-purple-600 transition-colors relative"
+        >
           <Bell className="w-5 h-5" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
         </button>
-        <button className="size-10 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-500 hover:text-purple-600 transition-colors">
+
+        {/* تیکت‌ها */}
+        <button
+          onClick={handleTicketClick}
+          title="تیکت‌ها"
+          className="size-10 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-500 hover:text-purple-600 transition-colors"
+        >
           <MessageCircle className="w-5 h-5" />
         </button>
       </div>
@@ -15750,52 +15900,109 @@ export default function AdminProjectManagementCategoryBadge({ category }: Props)
 </file>
 
 <file path="investment_platform_FrontEnd/investment_managment_project/components/pages/admin/admin-project-management/ProjectActions.tsx">
-import {
-  CheckCircle,
-  View,
-  XCircle,
-} from "lucide-react";
+"use client";
 
-
+import { CheckCircle, View, XCircle, Loader2 } from "lucide-react";
 import { AdminProjectManagementRow } from "@/lib/types/admin/admin-poject-management/AdminProjectTable";
+import { useAdminChangeProjectStatus } from "@/lib/hooks/useAdmin";
+import { useRouter } from "next/navigation";
+
 type Props = {
   project: AdminProjectManagementRow;
 };
 
+// mapping وضعیت فرانت → backend
+const STATUS_TO_BACKEND: Record<string, string> = {
+  pending: "PENDING_REVIEW",
+  approved: "APPROVED",
+  rejected: "REJECTED",
+};
+
 export default function AdminProjectManagementActions({ project }: Props) {
-  const isPending = project.status === "pending";
+  const router = useRouter();
+  const changeMutation = useAdminChangeProjectStatus();
+
+  const isPending =
+    project.status === "pending" && !changeMutation.isPending;
+
+  const handleView = () => {
+    // navigate به صفحه جزئیات پروژه عمومی
+    router.push(`/projects/${project.id}`);
+  };
+
+  const handleApprove = async () => {
+    if (!isPending) return;
+    try {
+      await changeMutation.mutateAsync({
+        id: project.id,
+        to_status: "APPROVED",
+      });
+    } catch {
+      // React Query خطا را مدیریت می‌کند
+    }
+  };
+
+  const handleReject = async () => {
+    if (!isPending) return;
+    try {
+      await changeMutation.mutateAsync({
+        id: project.id,
+        to_status: "REJECTED",
+        reason: "رد شده توسط مدیر",
+      });
+    } catch {
+      // React Query خطا را مدیریت می‌کند
+    }
+  };
+
+  if (changeMutation.isPending) {
+    return (
+      <div className="flex items-center justify-center">
+        <Loader2 size={18} className="animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center justify-center gap-1.5">
-
-      <button className="text-text-muted hover:text-primary p-2 rounded-xl hover:bg-primary/10 transition-all">
+      {/* مشاهده جزئیات */}
+      <button
+        onClick={handleView}
+        title="مشاهده جزئیات"
+        className="text-text-muted hover:text-primary p-2 rounded-xl hover:bg-primary/10 transition-all"
+      >
         <View size={18} />
       </button>
 
-      <div className="h-4 w-px bg-border-subtle"></div>
+      <div className="h-4 w-px bg-border-subtle" />
 
+      {/* تأیید */}
       <button
+        onClick={handleApprove}
         disabled={!isPending}
+        title={isPending ? "تأیید پروژه" : "قابل تغییر نیست"}
         className={
           isPending
-            ? "text-text-muted hover:text-green-600 p-2 rounded-xl hover:bg-green-50"
+            ? "text-text-muted hover:text-green-600 p-2 rounded-xl hover:bg-green-50 transition-all"
             : "text-gray-300 p-2 cursor-not-allowed"
         }
       >
         <CheckCircle size={18} />
       </button>
 
+      {/* رد */}
       <button
+        onClick={handleReject}
         disabled={!isPending}
+        title={isPending ? "رد پروژه" : "قابل تغییر نیست"}
         className={
           isPending
-            ? "text-text-muted hover:text-red-600 p-2 rounded-xl hover:bg-red-50"
+            ? "text-text-muted hover:text-red-600 p-2 rounded-xl hover:bg-red-50 transition-all"
             : "text-gray-300 p-2 cursor-not-allowed"
         }
       >
         <XCircle size={18} />
       </button>
-
     </div>
   );
 }
@@ -16578,10 +16785,15 @@ export const ADMIN_TICKET_COLUMNS: Column<TicketTableItem>[] = [
 </file>
 
 <file path="investment_platform_FrontEnd/investment_managment_project/components/pages/admin/admin-ticket-management/AdminTicketTableSection.tsx">
+"use client";
+
 import { ReusableTable, Column } from "@/components/ui/ReusableTable";
 import { AdminTicket } from "@/lib/api/services/admin.service";
-import { TicketTableItem, TicketPriority, TicketStatus } from "@/lib/types/admin/admin-ticket-management/AdminTicketTable";
-
+import {
+  TicketTableItem,
+  TicketPriority,
+  TicketStatus,
+} from "@/lib/types/admin/admin-ticket-management/AdminTicketTable";
 import { ADMIN_TICKET_PRIORITY_MAP } from "@/lib/constants/admin/admin-ticket-management/AdminTicketPriorityMap";
 import { ADMIN_TICKET_STATUS_MAP } from "@/lib/constants/admin/admin-ticket-management/AdminTicketStatusMap";
 
@@ -16595,18 +16807,25 @@ interface Props {
   selectedTicketId: string | null;
 }
 
+// backend مقادیر uppercase می‌فرستد — مستقیم pass می‌کنیم
 function mapPriority(priority: string): TicketPriority {
-  if (priority === "urgent" || priority === "high" || priority === "medium") {
-    return priority;
-  }
-  return "medium";
+  const valid: TicketPriority[] = ["HIGH", "MEDIUM", "LOW"];
+  return valid.includes(priority as TicketPriority)
+    ? (priority as TicketPriority)
+    : "MEDIUM";
 }
 
 function mapStatus(status: string): TicketStatus {
-  if (status === "waiting" || status === "processing" || status === "closed") {
-    return status;
-  }
-  return "waiting";
+  const valid: TicketStatus[] = [
+    "OPEN",
+    "IN_PROGRESS",
+    "CLOSED",
+    "USER_REPLIED",
+    "ADMIN_REPLIED",
+  ];
+  return valid.includes(status as TicketStatus)
+    ? (status as TicketStatus)
+    : "OPEN";
 }
 
 function mapTicket(t: AdminTicket, index: number): TicketTableItem {
@@ -16614,61 +16833,17 @@ function mapTicket(t: AdminTicket, index: number): TicketTableItem {
     id: index + 1,
     ticketId: t.id.slice(0, 8).toUpperCase(),
     subject: t.subject,
-    user: t.user.full_name || t.user.phone_number,
+    user:
+      t.user.full_name ||
+      t.user.phone_number ||
+      "کاربر ناشناس",
     priority: mapPriority(t.priority),
     status: mapStatus(t.status),
-    updatedAt: t.updated_at,
+    updatedAt: t.updated_at
+      ? new Date(t.updated_at).toLocaleDateString("fa-IR")
+      : "—",
   };
 }
-
-const ADMIN_TICKET_COLUMNS: Column<TicketTableItem>[] = [
-  {
-    header: "شناسه تیکت",
-    accessor: "ticketId",
-  },
-  {
-    header: "عنوان موضوع",
-    accessor: "subject",
-  },
-  {
-    header: "نام کاربر",
-    accessor: "user",
-  },
-  {
-    header: "اولویت",
-    accessor: (row) => {
-      const priority = ADMIN_TICKET_PRIORITY_MAP[row.priority];
-      return (
-        <span className={`rounded-md px-2 py-1 text-[11px] font-bold ${priority.className}`}>
-          {priority.label}
-        </span>
-      );
-    },
-  },
-  {
-    header: "وضعیت",
-    accessor: (row) => {
-      const status = ADMIN_TICKET_STATUS_MAP[row.status];
-      return (
-        <span className={`rounded-md px-2 py-1 text-[11px] font-bold ${status.className}`}>
-          {status.label}
-        </span>
-      );
-    },
-  },
-  {
-    header: "بروزرسانی",
-    accessor: "updatedAt",
-  },
-  {
-    header: "عملیات",
-    accessor: (row) => (
-      <button className="text-xs font-bold text-primary hover:underline">
-        مشاهده جزئیات
-      </button>
-    ),
-  },
-];
 
 export default function AdminTicketTableSection({
   data,
@@ -16681,18 +16856,87 @@ export default function AdminTicketTableSection({
 }: Props) {
   const tableData = data.map(mapTicket);
 
+  // ستون‌ها داخل component تا onSelectTicket در دسترس باشد
+  const columns: Column<TicketTableItem>[] = [
+    {
+      header: "شناسه تیکت",
+      accessor: "ticketId",
+    },
+    {
+      header: "عنوان موضوع",
+      accessor: "subject",
+    },
+    {
+      header: "نام کاربر",
+      accessor: "user",
+    },
+    {
+      header: "اولویت",
+      accessor: (row) => {
+        const priority = ADMIN_TICKET_PRIORITY_MAP[row.priority];
+        if (!priority) return <span>—</span>;
+        return (
+          <span
+            className={`rounded-md px-2 py-1 text-[11px] font-bold ${priority.className}`}
+          >
+            {priority.label}
+          </span>
+        );
+      },
+    },
+    {
+      header: "وضعیت",
+      accessor: (row) => {
+        const status = ADMIN_TICKET_STATUS_MAP[row.status];
+        if (!status) return <span>—</span>;
+        return (
+          <span
+            className={`rounded-md px-2 py-1 text-[11px] font-bold ${status.className}`}
+          >
+            {status.label}
+          </span>
+        );
+      },
+    },
+    {
+      header: "بروزرسانی",
+      accessor: "updatedAt",
+    },
+    {
+      header: "عملیات",
+      accessor: (row) => {
+        // پیدا کردن id اصلی از data اولیه با ticketId
+        const original = data.find(
+          (t) => t.id.slice(0, 8).toUpperCase() === row.ticketId
+        );
+        const isSelected = original?.id === selectedTicketId;
+        return (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (original) onSelectTicket(original.id);
+            }}
+            className={`text-xs font-bold transition-colors hover:underline ${
+              isSelected ? "text-green-600" : "text-primary"
+            }`}
+          >
+            {isSelected ? "در حال مشاهده" : "مشاهده جزئیات"}
+          </button>
+        );
+      },
+    },
+  ];
+
   return (
     <ReusableTable
-      columns={ADMIN_TICKET_COLUMNS}
+      columns={columns}
       data={tableData}
       enablePagination
-      enableFilter
       itemsPerPage={10}
       isLoading={isLoading}
       currentPage={currentPage}
       totalPages={totalPages}
       onPageChange={onPageChange}
-      onRowClick={(row) => onSelectTicket(data[row.id - 1]?.id ?? "")}
       emptyMessage="هیچ تیکتی یافت نشد"
     />
   );
@@ -17487,33 +17731,45 @@ export default function TransactionTypeSelect({
 <file path="investment_platform_FrontEnd/investment_managment_project/components/pages/admin/admin-user-management/AdminUserActions.tsx">
 "use client";
 
-import { Edit } from "lucide-react";
+import { Edit, Eye } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { AdminUserManagement } from "@/lib/types/admin/admin-user-management/AdminUserManagement";
 
 interface Props {
   user: AdminUserManagement;
+  // id اصلی UUID از backend برای routing
+  userId?: string;
 }
 
-export default function AdminUserActions({ user }: Props) {
+export default function AdminUserActions({ user, userId }: Props) {
+  const router = useRouter();
+
   const handleView = () => {
-    console.log("View User", user);
+    // نمایش modal یا navigate به صفحه جزئیات
+    // فعلاً alert با اطلاعات — بعداً modal اضافه می‌شود
+    alert(
+      `اطلاعات کاربر:\nنام: ${user.name}\nایمیل: ${user.email}\nنقش: ${user.role}\nوضعیت: ${user.active ? "فعال" : "غیرفعال"}`
+    );
   };
 
   const handleEdit = () => {
-    console.log("Edit User", user);
+    alert(`ویرایش کاربر: ${user.name}\n(این قابلیت در فاز بعدی پیاده‌سازی می‌شود)`);
   };
 
   return (
     <div className="flex items-center gap-3">
       <button
         onClick={handleView}
-        className="text-primary hover:underline text-xs font-black"
+        title="مشاهده جزئیات"
+        className="text-primary hover:underline text-xs font-black flex items-center gap-1"
       >
+        <Eye size={14} />
         مشاهده
       </button>
 
       <button
         onClick={handleEdit}
+        title="ویرایش کاربر"
         className="text-gray-400 hover:text-primary transition-colors"
       >
         <Edit size={18} />
@@ -17724,10 +17980,14 @@ export default function AdminUserStatus({
 </file>
 
 <file path="investment_platform_FrontEnd/investment_managment_project/components/pages/admin/admin-user-management/AdminUserTable.tsx">
-"use client"
+"use client";
+
 import { ReusableTable, Column } from "@/components/ui/ReusableTable";
 import { AdminUser } from "@/lib/api/services/admin.service";
-import { AdminUserManagement, UserRole } from "@/lib/types/admin/admin-user-management/AdminUserManagement";
+import {
+  AdminUserManagement,
+  UserRole,
+} from "@/lib/types/admin/admin-user-management/AdminUserManagement";
 import UserRoleBadge from "./UserRoleBadge";
 import AdminUserStatus from "./AdminUserStatus";
 import AdminUserAvatar from "./AdminUserAvatar";
@@ -17742,25 +18002,42 @@ interface Props {
   onPageChange: (page: number) => void;
 }
 
-function mapRole(role: string): UserRole {
-  if (role === "مدیر سیستم" || role === "سرمایه‌گذار" || role === "کارشناس مالی") {
-    return role;
-  }
-  return "سرمایه‌گذار";
+// نگه داشتن UUID اصلی در کنار mapped data
+interface MappedUser {
+  mapped: AdminUserManagement;
+  originalId: string;
 }
 
-function mapUser(u: AdminUser, index: number): AdminUserManagement {
-  const fullName = u.profile?.first_name && u.profile?.last_name
-    ? `${u.profile.first_name} ${u.profile.last_name}`
-    : u.phone_number;
+function mapRole(role: string): UserRole {
+  const roleMap: Record<string, UserRole> = {
+    ADMIN: "مدیر سیستم",
+    INVESTOR: "سرمایه‌گذار",
+    ENTREPRENEUR: "کارشناس مالی",
+    admin: "مدیر سیستم",
+    investor: "سرمایه‌گذار",
+    entrepreneur: "کارشناس مالی",
+  };
+  return roleMap[role] ?? "سرمایه‌گذار";
+}
+
+function mapUser(u: AdminUser, index: number): MappedUser {
+  const fullName =
+    u.profile?.first_name && u.profile?.last_name
+      ? `${u.profile.first_name} ${u.profile.last_name}`
+      : u.phone_number;
 
   return {
-    id: index + 1,
-    name: fullName,
-    email: u.profile?.email ?? "",
-    role: mapRole(u.role),
-    active: u.is_active,
-    joined: u.created_at,
+    originalId: u.id,
+    mapped: {
+      id: index + 1,
+      name: fullName,
+      email: u.profile?.email ?? u.phone_number,
+      role: mapRole(u.role),
+      active: u.is_active,
+      joined: u.created_at
+        ? new Date(u.created_at).toLocaleDateString("fa-IR")
+        : "—",
+    },
   };
 }
 
@@ -17771,55 +18048,45 @@ export default function AdminUserTable({
   currentPage,
   onPageChange,
 }: Props) {
-  const tableColumns: Column<AdminUserManagement>[] = [
+  const mappedUsers = data.map(mapUser);
+
+  const tableColumns: Column<MappedUser>[] = [
     {
       header: "نام کاربر",
-      accessor: (user) => (
-        <AdminUserAvatar
-          name={user.name}
-        />
-      ),
+      accessor: (item) => <AdminUserAvatar name={item.mapped.name} />,
     },
     {
       header: "ایمیل / شناسه",
-      accessor: (user) => (
-        <AdminUserInfo
-          email={user.email}
-          id={user.id}
-        />
+      accessor: (item) => (
+        <AdminUserInfo email={item.mapped.email} id={item.mapped.id} />
       ),
     },
     {
       header: "نقش",
-      accessor: (user) => (
-        <UserRoleBadge role={user.role} />
-      ),
+      accessor: (item) => <UserRoleBadge role={item.mapped.role} />,
     },
     {
       header: "وضعیت",
-      accessor: (user) => (
-        <AdminUserStatus
-          active={user.active}
-        />
-      ),
+      accessor: (item) => <AdminUserStatus active={item.mapped.active} />,
     },
     {
       header: "تاریخ عضویت",
-      accessor: (user) => user.joined,
+      accessor: (item) => item.mapped.joined,
     },
     {
       header: "عملیات",
-      accessor: (user) => (
-        <AdminUserActions user={user} />
+      accessor: (item) => (
+        <AdminUserActions
+          user={item.mapped}
+          userId={item.originalId}
+        />
       ),
     },
   ];
 
-  const tableData = data.map(mapUser);
-
   return (
     <ReusableTable
-      data={tableData}
+      data={mappedUsers}
       columns={tableColumns}
       enablePagination
       itemsPerPage={10}
@@ -26323,21 +26590,26 @@ export default function ProjectCard({
         overflow-hidden
       "
     >
-      {/* Image */}
-      <div className="relative h-48 w-full overflow-hidden">
-
-        <Image
-          src={project.image}
-          alt={project.title}
-          fill
-          className="
-            object-cover
-            transition-transform
-            duration-700
-            group-hover:scale-105
-          "
-        />
-
+        {/* Image */}
+        <div className="relative h-48 w-full overflow-hidden bg-gray-100">
+          <Image
+            src={project.image}
+            alt={project.title}
+            fill
+            className="object-cover transition-transform duration-700 group-hover:scale-105"
+            // fallback اگر تصویر لود نشد
+            onError={(e) => {
+              const target = e.currentTarget as HTMLImageElement;
+              if (target.src !== "/images/img-1.png") {
+                target.src = "/images/img-1.png";
+              }
+            }}
+            unoptimized={
+              // برای URLهای خارجی که ممکن است مشکل داشته باشند
+              project.image.startsWith("http://")
+            }
+          />
+          
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
 
 
@@ -27129,13 +27401,14 @@ const CATEGORY_MAP: Record<string, string> = {
   technology: "TECHNOLOGY",
   industry: "INDUSTRY",
   agriculture: "AGRICULTURE",
+  health: "HEALTH",
+  services: "SERVICES",
 };
 
-// ── تبدیل فرم به FormData برای ارسال به بک‌اند ───────────────────────────────
+// ── تبدیل فرم به FormData ─────────────────────────────────────────────────────
 function buildFormData(data: CreateProjectFormValues): FormData {
   const fd = new FormData();
 
-  // فیلدهای متنی - mapping نام فیلد فرانت → بک‌اند
   fd.append("title", data.projectName);
   fd.append("description", data.fullDesc);
   fd.append("category", CATEGORY_MAP[data.category] ?? "OTHER");
@@ -27144,10 +27417,14 @@ function buildFormData(data: CreateProjectFormValues): FormData {
   fd.append("start_date", data.startDate);
   fd.append("end_date", data.endDate);
 
-  // فایل cover_image (اگر وجود داشت)
-  if (data.documents && data.documents.length > 0) {
-    fd.append("cover_image", data.documents[0]);
+  // ── cover_image جداگانه — فقط اگر انتخاب شده باشد ──────────────────────
+  if (data.coverImage instanceof File) {
+    fd.append("cover_image", data.coverImage);
   }
+
+  // ── اسناد — هیچ‌کدام به عنوان cover ارسال نمی‌شوند ────────────────────────
+  // اسناد از طریق endpoint جداگانه /projects/{id}/documents/ آپلود می‌شوند
+  // و در این مرحله ارسال نمی‌شوند
 
   return fd;
 }
@@ -27172,6 +27449,7 @@ export default function CreateNewProjectForm() {
       startDate: "",
       endDate: "",
       duration: 0,
+      coverImage: null,
       documents: [],
     },
   });
@@ -27180,27 +27458,25 @@ export default function CreateNewProjectForm() {
   const createMutation = useMutation({
     mutationFn: (formData: FormData) =>
       projectsService.createProject(formData),
-    onSuccess: (createdProject) => {
-      // بازنشانی کش داشبورد و لیست پروژه‌ها
+
+    onSuccess: async (createdProject, formData) => {
+      // آپلود اسناد جداگانه اگر وجود داشتند
+      // (در این نسخه documents از فرم حذف شده — برای فاز بعد)
+
       queryClient.invalidateQueries({ queryKey: OWNER_DASHBOARD_KEY });
-      queryClient.invalidateQueries({
-        queryKey: ["owner", "my-projects"],
-      });
-      // redirect به صفحه جزئیات پروژه
+      queryClient.invalidateQueries({ queryKey: ["owner", "my-projects"] });
       router.push(`/project-details?id=${createdProject.id}`);
+    },
+
+    onError: (error) => {
+      console.error("خطا در ثبت پروژه:", error);
     },
   });
 
-  // ── submit نهایی ──────────────────────────────────────────────────────────
+  // ── submit ────────────────────────────────────────────────────────────────
   const onSubmit = (data: CreateProjectFormValues) => {
     createMutation.mutate(buildFormData(data));
   };
-
-  // ── ذخیره پیش‌نویس ───────────────────────────────────────────────────────
-  const onSaveDraft = handleSubmit((data) => {
-    // بک‌اند به صورت پیش‌فرض وضعیت DRAFT ایجاد می‌کند
-    createMutation.mutate(buildFormData(data));
-  });
 
   const isPending = createMutation.isPending || isSubmitting;
 
@@ -27227,11 +27503,11 @@ export default function CreateNewProjectForm() {
           <div className="flex justify-end gap-4 bg-gray-50 p-6 lg:p-8 dark:bg-white/5">
             <button
               type="button"
-              onClick={onSaveDraft}
+              onClick={() => router.back()}
               disabled={isPending}
               className="h-11 rounded-lg border border-gray-200 px-6 text-text-main disabled:opacity-50 dark:border-[#3d384e]"
             >
-              ذخیره پیش‌نویس
+              انصراف
             </button>
 
             <button
@@ -27279,23 +27555,24 @@ type Props = {
   control: Control<CreateProjectFormValues>;
 };
 
-export default function ProjectDocumentsSection({
-  control,
-}: Props) {
+export default function ProjectDocumentsSection({ control }: Props) {
   return (
     <div className="p-6 lg:p-8 flex flex-col gap-6">
       <div className="flex items-center gap-2">
         <Folder className="h-5 w-5 text-primary" />
-
         <h3 className="text-lg font-bold text-text-main dark:text-white">
           بارگذاری مدارک پروژه
         </h3>
       </div>
 
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        مدارک پروژه را می‌توانید پس از ثبت پروژه نیز بارگذاری کنید.
+      </p>
+
       <FormFileUploadField
         control={control}
         name="documents"
-        label="مدارک پروژه"
+        label="مدارک پروژه (اختیاری)"
         multiple
         maxSize={10}
         accept=".pdf,.jpg,.jpeg,.png"
@@ -27354,12 +27631,12 @@ export default function ProjectFinanceSection({
 <file path="investment_platform_FrontEnd/investment_managment_project/components/pages/project-owner-panel/create-project/ProjectInformationSection.tsx">
 "use client";
 
-import { Info } from "lucide-react";
-import { Control } from "react-hook-form";
+import { Info, ImagePlus, X } from "lucide-react";
+import { Control, useController } from "react-hook-form";
+import { useRef, useState } from "react";
 
 import { FormInputField } from "@/components/ui/FormInputField";
 import { FormScrollableSelectField } from "@/components/ui/FormScrollableSelectField";
-
 import { CreateProjectFormValues } from "@/lib/validation/create-project.validation";
 import { projectCategories } from "@/lib/constants/project-owner-panel/create-project/create-new-project";
 
@@ -27367,19 +27644,102 @@ type Props = {
   control: Control<CreateProjectFormValues>;
 };
 
-export default function ProjectInformationSection({
-  control,
-}: Props) {
+export default function ProjectInformationSection({ control }: Props) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+
+  const {
+    field,
+    fieldState: { error },
+  } = useController({ control, name: "coverImage" });
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // نمایش preview
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    field.onChange(file);
+  };
+
+  const handleRemove = () => {
+    if (preview) URL.revokeObjectURL(preview);
+    setPreview(null);
+    field.onChange(null);
+    // reset input
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
   return (
     <div className="p-6 lg:p-8 flex flex-col gap-6">
       <div className="flex items-center gap-2">
         <Info className="h-5 w-5 text-primary" />
-
         <h3 className="text-lg font-bold text-text-main dark:text-white">
           اطلاعات پروژه
         </h3>
       </div>
 
+      {/* ── آپلود تصویر Cover ──────────────────────────────────────────────── */}
+      <div className="flex flex-col gap-2">
+        <label className="text-sm font-medium text-text-main dark:text-white">
+          تصویر پروژه
+          <span className="text-gray-400 font-normal mr-1">(اختیاری)</span>
+        </label>
+
+        {preview ? (
+          /* نمایش preview */
+          <div className="relative w-full h-48 rounded-xl overflow-hidden border border-gray-200 dark:border-[#3d384e]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={preview}
+              alt="تصویر پروژه"
+              className="w-full h-full object-cover"
+            />
+            <button
+              type="button"
+              onClick={handleRemove}
+              className="absolute top-2 left-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+              title="حذف تصویر"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        ) : (
+          /* ناحیه آپلود */
+          <label
+            className={`
+              flex flex-col items-center justify-center gap-3 
+              w-full h-48 rounded-xl border-2 border-dashed cursor-pointer
+              transition-all hover:border-primary hover:bg-primary/5
+              ${error ? "border-red-400 bg-red-50" : "border-gray-200 bg-gray-50 dark:border-[#3d384e] dark:bg-white/5"}
+            `}
+          >
+            <ImagePlus className="h-8 w-8 text-gray-400" />
+            <div className="text-center">
+              <p className="text-sm font-medium text-text-main dark:text-white">
+                تصویر cover پروژه را انتخاب کنید
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                JPG، PNG یا WEBP — حداکثر ۵MB
+              </p>
+            </div>
+            <input
+              ref={inputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+          </label>
+        )}
+
+        {error && (
+          <p className="text-xs text-red-500 font-medium">{error.message}</p>
+        )}
+      </div>
+
+      {/* ── فیلدهای متنی ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <FormInputField
           control={control}
@@ -27500,6 +27860,7 @@ import { useMyProjects } from "@/lib/hooks/useOwnerDashboard";
 import { TablePagination } from "@/components/ui/TablePagination";
 import ProjectCard from "../../main/projects/ProjectsGrid/ProjectCard";
 import { BackendProject } from "@/lib/api/services/projects.service";
+import { resolveImageUrl } from "@/lib/utils/image.utils"; // ← اضافه شد
 
 function toUIProject(p: BackendProject) {
   return {
@@ -27510,7 +27871,7 @@ function toUIProject(p: BackendProject) {
     shortDescription: p.description?.slice(0, 120) ?? "",
     industry: p.category_display,
     category: p.category_display,
-    image: p.cover_image_url ?? "/images/img-1.png",
+    image: resolveImageUrl(p.cover_image_url), // ← تغییر کرد
     status: mapStatus(p.status),
     progress: parseFloat(p.funding_percentage) || 0,
     targetAmount: parseFloat(p.required_budget) || 0,
@@ -27583,7 +27944,7 @@ export default function MyProjectsBody() {
           <ProjectCard
             key={project.id}
             project={project}
-            detailsHref="/project-details"
+            detailsHref={`/project-details?id=${project.id}`}
           />
         ))}
       </div>
@@ -28233,6 +28594,15 @@ export default function ProjectDetailsInformation() {
   const projectId = searchParams.get("id");
 
   const { data: project, isLoading, isError } = useProjectDetail(projectId);
+
+
+  if (!projectId) {
+    return (
+      <div className="py-8 text-center text-sm text-gray-400">
+        پروژه‌ای انتخاب نشده است.
+      </div>
+    );
+  }
 
   if (isLoading) return <InfoSkeleton />;
 
@@ -34999,7 +35369,7 @@ export interface AdminTicket {
   user: {
     id: string;
     phone_number: string;
-    full_name?: string;
+    full_name?: string;  // اضافه شد
   };
   subject: string;
   priority: string;
@@ -35031,7 +35401,7 @@ export interface AdminTicketDetail {
   user: {
     id: string;
     phone_number: string;
-    full_name?: string;
+    full_name?: string;  // اضافه شد
     role?: string;
   };
   subject: string;
@@ -35044,8 +35414,9 @@ export interface AdminTicketDetail {
     sender: {
       id: string;
       phone_number: string;
-      full_name?: string;
+      full_name?: string;  // اضافه شد - جایگزین username
       is_admin?: boolean;
+      role?: string;       // اضافه شد - برای تشخیص admin
     };
     message: string;
     attachment_url?: string;
@@ -35615,14 +35986,20 @@ export const investorService = {
   },
 
   // پروژه‌های قابل سرمایه‌گذاری
-  getInvestableProjects: async (
-    params?: ProjectListParams
-  ): Promise<PaginatedProjects> => {
-    const res = await axiosInstance.get("/projects/", {
-      params: { ...params, status: "FUNDING" },
-    });
-    return unwrap<PaginatedProjects>(res);
-  },
+// پروژه‌های قابل سرمایه‌گذاری — status APPROVED یا FUNDING
+getInvestableProjects: async (
+  params?: ProjectListParams
+): Promise<PaginatedProjects> => {
+  const res = await axiosInstance.get("/projects/", {
+    params: {
+      ...params,
+      // APPROVED: تأیید شده و آماده سرمایه‌گذاری
+      // FUNDING: در حال جذب سرمایه
+      status: params?.status ?? "APPROVED",
+    },
+  });
+  return unwrap<PaginatedProjects>(res);
+},
 
   // ── سرمایه‌گذاری‌های من (endpoint جدید) ──────────────────────────────────
   getMyInvestmentsList: async (params?: {
@@ -36154,34 +36531,44 @@ export type BackendTicketStatus =
   | "OPEN"
   | "USER_REPLIED"
   | "ADMIN_REPLIED"
+  | "IN_PROGRESS"
   | "CLOSED";
 
 export type BackendTicketPriority = "LOW" | "MEDIUM" | "HIGH";
 
+export interface BackendTicketSender {
+  id: string;
+  phone_number: string;
+  full_name?: string;
+  // backend ممکن است is_staff یا role بفرستد
+  is_admin?: boolean;
+  role?: string;
+}
+
 export interface BackendTicketMessage {
   id: string;
-  sender: {
-    id: string;
-    username: string;
-    phone_number: string;
-  };
+  sender: BackendTicketSender;
   message: string;
   attachment_url: string | null;
   created_at: string;
 }
 
+export interface BackendTicketUser {
+  id: string;
+  phone_number: string;
+  full_name?: string;
+  role?: string;
+}
+
 export interface BackendTicket {
   id: string;
-  user: {
-    id: string;
-    username: string;
-    phone_number: string;
-  };
+  user: BackendTicketUser;
   subject: string;
   priority: BackendTicketPriority;
   status: BackendTicketStatus;
   created_at: string;
   updated_at: string;
+  messages_count?: number;
 }
 
 export interface BackendTicketDetail extends BackendTicket {
@@ -36216,12 +36603,7 @@ interface ApiResponse<T> {
 
 function unwrap<T>(response: { data: ApiResponse<T> | T }): T {
   const p = response.data;
-  if (
-    p &&
-    typeof p === "object" &&
-    "data" in p &&
-    "success" in p
-  ) {
+  if (p && typeof p === "object" && "data" in p && "success" in p) {
     return (p as ApiResponse<T>).data;
   }
   return p as T;
@@ -36232,6 +36614,8 @@ export const ticketService = {
   getTickets: async (params?: {
     page?: number;
     page_size?: number;
+    status?: string;
+    priority?: string;
   }): Promise<PaginatedTickets> => {
     const res = await axiosInstance.get("/tickets/", { params });
     return unwrap<PaginatedTickets>(res);
@@ -37069,24 +37453,20 @@ import { TicketPriority } from "@/lib/types/admin/admin-ticket-management/AdminT
 
 export const ADMIN_TICKET_PRIORITY_MAP: Record<
   TicketPriority,
-  {
-    label: string;
-    className: string;
-  }
+  { label: string; className: string }
 > = {
-  urgent: {
-    label: "فوری",
+  // مقادیر واقعی backend
+  HIGH: {
+    label: "بالا",
     className: "bg-red-50 text-red-600",
   },
-
-  high: {
-    label: "بالا",
+  MEDIUM: {
+    label: "متوسط",
     className: "bg-yellow-50 text-yellow-700",
   },
-
-  medium: {
-    label: "متوسط",
-    className: "bg-orange-50 text-orange-600",
+  LOW: {
+    label: "پایین",
+    className: "bg-gray-100 text-gray-600",
   },
 };
 </file>
@@ -37096,51 +37476,38 @@ import { TicketStatus } from "@/lib/types/admin/admin-ticket-management/AdminTic
 
 export const ADMIN_TICKET_STATUS_MAP: Record<
   TicketStatus,
-  {
-    label: string;
-    className: string;
-  }
+  { label: string; className: string }
 > = {
-  waiting: {
-    label: "در انتظار پاسخ",
+  // مقادیر واقعی backend
+  OPEN: {
+    label: "باز",
     className: "bg-primary/10 text-primary",
   },
-
-  processing: {
+  IN_PROGRESS: {
     label: "در حال بررسی",
     className: "bg-blue-50 text-blue-600",
   },
-
-  closed: {
+  CLOSED: {
     label: "بسته شده",
     className: "bg-green-50 text-green-600",
+  },
+  USER_REPLIED: {
+    label: "پاسخ کاربر",
+    className: "bg-yellow-50 text-yellow-700",
+  },
+  ADMIN_REPLIED: {
+    label: "پاسخ ادمین",
+    className: "bg-purple-50 text-purple-600",
   },
 };
 </file>
 
 <file path="investment_platform_FrontEnd/investment_managment_project/lib/constants/admin/admin-ticket-management/AdminTicketTable.tsx">
-import { TicketTableItem } from "@/lib/types/admin/admin-ticket-management/AdminTicketTable";
+// این فایل دیگر استفاده نمی‌شود.
+// داده‌های تیکت از backend از طریق useAdminTickets دریافت می‌شود.
+// فایل خالی نگه داشته شده تا import های احتمالی آینده نشکنند.
 
-export const TICKET_TABLE_DATA: TicketTableItem[] = [
-  {
-    id: 1,
-    ticketId: "#TK-8492",
-    subject: "خطا در برداشت وجه از کیف پول",
-    user: "رضا احمدی",
-    priority: "urgent",
-    status: "waiting",
-    updatedAt: "۲ دقیقه پیش",
-  },
-  {
-    id: 2,
-    ticketId: "#TK-8488",
-    subject: "سوال در مورد پروژه آفتاب گردان",
-    user: "سارا کریمی",
-    priority: "medium",
-    status: "processing",
-    updatedAt: "۱ ساعت پیش",
-  },
-];
+export {};
 </file>
 
 <file path="investment_platform_FrontEnd/investment_managment_project/lib/constants/admin/admin-ticket-management/ticket.conversation.data.ts">
@@ -37262,61 +37629,30 @@ department:"مدیر مالی"
 </file>
 
 <file path="investment_platform_FrontEnd/investment_managment_project/lib/constants/admin/admin-ticket-management/TicketFilterFormValues .ts">
-import { TicketFilterOption } from 
-"@/lib/types/admin/admin-ticket-management/AdminTicketFilterOption";
+import { TicketFilterOption } from
+  "@/lib/types/admin/admin-ticket-management/AdminTicketFilterOption";
 
 export const TICKET_FILTERS = {
   status: <TicketFilterOption[]>[
-    {
-      label: "همه وضعیت‌ها",
-      value: "all",
-    },
-    {
-      label: "در انتظار پاسخ",
-      value: "waiting",
-    },
-    {
-      label: "در حال بررسی",
-      value: "processing",
-    },
-    {
-      label: "بسته شده",
-      value: "closed",
-    },
+    { label: "همه وضعیت‌ها", value: "all" },
+    { label: "باز", value: "OPEN" },
+    { label: "در حال بررسی", value: "IN_PROGRESS" },
+    { label: "بسته شده", value: "CLOSED" },
+    { label: "پاسخ کاربر", value: "USER_REPLIED" },
+    { label: "پاسخ ادمین", value: "ADMIN_REPLIED" },
   ],
 
   priority: <TicketFilterOption[]>[
-    {
-      label: "همه اولویت‌ها",
-      value: "all",
-    },
-    {
-      label: "فوری",
-      value: "urgent",
-    },
-    {
-      label: "بالا",
-      value: "high",
-    },
-    {
-      label: "متوسط",
-      value: "medium",
-    },
+    { label: "همه اولویت‌ها", value: "all" },
+    { label: "بالا", value: "HIGH" },
+    { label: "متوسط", value: "MEDIUM" },
+    { label: "پایین", value: "LOW" },
   ],
 
   category: <TicketFilterOption[]>[
-    {
-      label: "فنی",
-      value: "technical",
-    },
-    {
-      label: "مالی",
-      value: "financial",
-    },
-    {
-      label: "احراز هویت",
-      value: "identity",
-    },
+    { label: "فنی", value: "technical" },
+    { label: "مالی", value: "financial" },
+    { label: "احراز هویت", value: "identity" },
   ],
 };
 </file>
@@ -41477,15 +41813,18 @@ export type AdminTicketManagementForm = {
 <file path="investment_platform_FrontEnd/investment_managment_project/lib/types/admin/admin-ticket-management/AdminTicketTable.ts">
 import { ReactNode } from "react";
 
+// مطابق با مقادیر واقعی backend
 export type TicketStatus =
-  | "waiting"
-  | "processing"
-  | "closed";
+  | "OPEN"
+  | "IN_PROGRESS"
+  | "CLOSED"
+  | "USER_REPLIED"
+  | "ADMIN_REPLIED";
 
 export type TicketPriority =
-  | "urgent"
-  | "high"
-  | "medium";
+  | "HIGH"
+  | "MEDIUM"
+  | "LOW";
 
 export type TicketTableItem = {
   id: number;
@@ -42562,6 +42901,20 @@ export function getPersianDate(): string {
 }
 </file>
 
+<file path="investment_platform_FrontEnd/investment_managment_project/lib/utils/image.utils.ts">
+const BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+export function resolveImageUrl(
+  url: string | null | undefined,
+  fallback = "/images/img-1.png"
+): string {
+  if (!url) return fallback;
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  return `${BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
+}
+</file>
+
 <file path="investment_platform_FrontEnd/investment_managment_project/lib/utils/Numberformat.ts">
 export const toPersianNumber = (num: number): string => {
   return new Intl.NumberFormat('fa-IR').format(num);
@@ -42596,6 +42949,7 @@ import type {
 // ── نگاشت وضعیت بک‌اند → فرانت ──────────────────────────────────────────────
 const STATUS_MAP: Record<BackendTicketStatus, TicketStatus> = {
   OPEN: "open",
+  IN_PROGRESS: "in_progress",   // اضافه شد
   USER_REPLIED: "in_progress",
   ADMIN_REPLIED: "in_progress",
   CLOSED: "closed",
@@ -42603,6 +42957,7 @@ const STATUS_MAP: Record<BackendTicketStatus, TicketStatus> = {
 
 const STATUS_LABEL: Record<BackendTicketStatus, string> = {
   OPEN: "باز",
+  IN_PROGRESS: "در حال بررسی",  // اضافه شد
   USER_REPLIED: "منتظر پاسخ",
   ADMIN_REPLIED: "پاسخ داده شده",
   CLOSED: "بسته شده",
@@ -42629,7 +42984,7 @@ export function mapMessage(
   return {
     id: msg.id,
     sender: isUser ? "user" : "agent",
-    authorName: msg.sender.username,
+    authorName: msg.sender.full_name || msg.sender.phone_number,
     time: new Date(msg.created_at).toLocaleTimeString("fa-IR", {
       hour: "2-digit",
       minute: "2-digit",
@@ -42987,12 +43342,16 @@ export const createProject = z.object({
 
   targetAmount: z.preprocess(
     toNumber,
-    z.number({ invalid_type_error: "مبلغ باید عدد باشد" }).min(1, "مبلغ مورد نیاز الزامی است")
+    z
+      .number({ invalid_type_error: "مبلغ باید عدد باشد" })
+      .min(1, "مبلغ مورد نیاز الزامی است"),
   ),
 
   minInvest: z.preprocess(
     toNumber,
-    z.number({ invalid_type_error: "حداقل سرمایه‌گذاری باید عدد باشد" }).min(1, "حداقل سرمایه‌گذاری الزامی است")
+    z
+      .number({ invalid_type_error: "حداقل سرمایه‌گذاری باید عدد باشد" })
+      .min(1, "حداقل سرمایه‌گذاری الزامی است"),
   ),
 
   startDate: z.string().min(1, "تاریخ شروع الزامی است"),
@@ -43001,13 +43360,32 @@ export const createProject = z.object({
 
   duration: z.preprocess(
     toNumber,
-    z.number({ invalid_type_error: "مدت باید عدد باشد" }).min(1, "حداقل یک ماه").max(60, "حداکثر ۶۰ ماه")
+    z
+      .number({ invalid_type_error: "مدت باید عدد باشد" })
+      .min(1, "حداقل یک ماه")
+      .max(60, "حداکثر ۶۰ ماه"),
   ),
 
+  // ── فیلد جدید: تصویر cover (اختیاری) ─────────────────────────────────────
+  coverImage: z
+    .instanceof(File)
+    .optional()
+    .nullable()
+    .refine(
+      (f) => !f || f.size <= 5 * 1024 * 1024,
+      "حجم تصویر نباید بیشتر از ۵ مگابایت باشد",
+    )
+    .refine(
+      (f) => !f || ["image/jpeg", "image/png", "image/webp"].includes(f.type),
+      "فقط فرمت JPG، PNG و WEBP مجاز است",
+    ),
+
+  // ── اسناد (اختیاری — بک‌اند جداگانه آپلود می‌کند) ───────────────────────
   documents: z
     .array(z.instanceof(File))
-    .min(1, "حداقل یک فایل باید بارگذاری شود")
-    .max(5, "حداکثر ۵ فایل مجاز است"),
+    .max(5, "حداکثر ۵ فایل مجاز است")
+    .optional()
+    .default([]),
 });
 
 export type CreateProjectFormValues = z.infer<typeof createProject>;
@@ -43939,7 +44317,6 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
-  // اجازه دسترسی به API بک‌اند از Next.js
   async rewrites() {
     return [];
   },
@@ -43948,10 +44325,17 @@ const nextConfig: NextConfig = {
       {
         protocol: "http",
         hostname: "5.198.179.184",
+        pathname: "/media/**",
       },
       {
         protocol: "http",
         hostname: "localhost",
+        pathname: "/media/**",
+      },
+      {
+        protocol: "https",
+        hostname: "**",
+        pathname: "/media/**",
       },
     ],
   },

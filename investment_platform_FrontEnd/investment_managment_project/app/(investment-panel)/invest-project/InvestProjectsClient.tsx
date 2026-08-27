@@ -38,18 +38,18 @@ function toUIProject(p: BackendProject) {
     shortDescription: (p.description ?? "").slice(0, 120),
     industry: p.category_display ?? "—",
     category: p.category_display ?? "—",
-    image: resolveImageUrl(p.cover_image_url),  // ← اصلاح شد
+    image: resolveImageUrl(p.cover_image_url),
     status: "active" as const,
-    progress: parseFloat(p.funding_percentage) || 0,
-    targetAmount: parseFloat(p.required_budget) || 0,
-    fundedAmount: parseFloat(p.raised_amount) || 0,
+    progress: parseFloat(String(p.funding_percentage)) || 0,
+    targetAmount: parseFloat(String(p.required_budget)) || 0,
+    fundedAmount: parseFloat(String(p.raised_amount)) || 0,
     investors: p.investors_count ?? 0,
-    profit: parseFloat(p.profit_rate_percentage ?? "0") || 0,
+    profit: parseFloat(String(p.profit_rate_percentage ?? "0")) || 0,
     chartData: [] as number[],
     projectCode: p.id.slice(0, 8).toUpperCase(),
     remainingDays: p.remaining_days ?? 0,
-    minInvestment: parseFloat(p.min_investment_amount) || 0,
-    maxInvestment: parseFloat(p.max_investment_amount ?? p.required_budget) || 0,
+    minInvestment: parseFloat(String(p.min_investment_amount)) || 0,
+    maxInvestment: parseFloat(String(p.max_investment_amount ?? p.required_budget)) || 0,
     investmentPeriod: p.remaining_days ?? 0,
     paymentPeriod: "ماهانه",
     guarantee: "ضمانت‌نامه بانکی",
@@ -57,16 +57,53 @@ function toUIProject(p: BackendProject) {
   };
 }
 
+// ── helper: داده‌های paginated را از هر شکلی استخراج کن ─────────────────────
+function extractPaginatedData(raw: unknown): {
+  results: BackendProject[];
+  count: number;
+  total_pages: number;
+} {
+  if (!raw || typeof raw !== "object") {
+    return { results: [], count: 0, total_pages: 1 };
+  }
+
+  const r = raw as Record<string, unknown>;
+
+  // حالت ۱: مستقیم paginated { count, results, total_pages }
+  if (Array.isArray(r.results)) {
+    return {
+      results: r.results as BackendProject[],
+      count: (r.count as number) || 0,
+      total_pages: (r.total_pages as number) || 1,
+    };
+  }
+
+  // حالت ۲: wrapped در { success, data: { count, results } }
+  if (r.data && typeof r.data === "object") {
+    const inner = r.data as Record<string, unknown>;
+    if (Array.isArray(inner.results)) {
+      return {
+        results: inner.results as BackendProject[],
+        count: (inner.count as number) || 0,
+        total_pages: (inner.total_pages as number) || 1,
+      };
+    }
+  }
+
+  return { results: [], count: 0, total_pages: 1 };
+}
+
 export default function InvestProjectsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const { data: wallet } = useWallet();
-  const { data, isLoading, isError } = useInvestableProjects({
+  const { data: rawData, isLoading, isError } = useInvestableProjects({
     page: currentPage,
     page_size: PAGE_SIZE,
   });
 
-  const projects = (data?.results ?? []).map(toUIProject);
-  const totalPages = data?.total_pages ?? 1;
+  const { results, count, total_pages } = extractPaginatedData(rawData);
+  const projects = results.map(toUIProject);
+  const totalPages = total_pages || 1;
 
   const balance = parseFloat(wallet?.available_balance ?? "0");
   const blocked = parseFloat(wallet?.blocked_amount ?? "0");
@@ -91,7 +128,7 @@ export default function InvestProjectsPage() {
     {
       id: 3,
       title: "پروژه‌های فعال",
-      value: (data?.count ?? 0).toLocaleString("fa-IR"),
+      value: count.toLocaleString("fa-IR"),
       unit: "پروژه",
       icon: BarChart3,
       color: "text-green-500",
