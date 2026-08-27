@@ -11,29 +11,68 @@ import { useQueryParams } from "@/lib/hooks/useQueryParams";
 import { ProjectFilters } from "@/lib/types/project-filters";
 import { BackendProject } from "@/lib/api/services/projects.service";
 
-// تبدیل داده بک‌اند به فرمت Project که کامپوننت‌های UI انتظار دارند
+// ── helper: ساخت URL کامل تصویر ──────────────────────────────────────────────
+const BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+function resolveImageUrl(url: string | null | undefined): string {
+  if (!url) return "/images/img-1.png";
+  // اگر URL کامل است (http/https) مستقیم برگردان
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  // اگر نسبی است، base را اضافه کن
+  return `${BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
+}
+
+// ── helper: نمایش نام مالک ───────────────────────────────────────────────────
+function resolveOwnerName(owner: BackendProject["owner"]): string {
+  if (!owner) return "—";
+  // اگر backend در آینده full_name اضافه کرد
+  if ("full_name" in owner && owner.full_name) {
+    return owner.full_name as string;
+  }
+  // اگر username واقعی دارد (نه شماره)
+  if (
+    owner.username &&
+    !owner.username.startsWith("09") &&
+    owner.username !== owner.phone_number
+  ) {
+    return owner.username;
+  }
+  // شماره موبایل را به فرمت خوانا نشان بده
+  const phone = owner.phone_number ?? owner.username ?? "";
+  if (phone.length === 11) {
+    // مثال: ۰۹۱۲ *** ۴۵۶۷
+    return `${phone.slice(0, 4)} *** ${phone.slice(7)}`;
+  }
+  return phone || "—";
+}
+
+// ── mapping اصلی ──────────────────────────────────────────────────────────────
 function toUIProject(p: BackendProject) {
   return {
     id: p.id,
     title: p.title,
-    symbol: p.owner?.username ?? "",
-    description: p.description,
-    shortDescription: p.description?.slice(0, 120) ?? "",
-    industry: p.category_display,
-    category: p.category_display,
-    image: p.cover_image_url ?? "/images/img-1.png",
+    // نمایش نام مالک به جای username/phone خام
+    symbol: resolveOwnerName(p.owner),
+    description: p.description ?? "",
+    shortDescription: (p.description ?? "").slice(0, 120),
+    industry: p.category_display ?? "—",
+    category: p.category_display ?? "—",
+    // URL کامل تصویر
+    image: resolveImageUrl(p.cover_image_url),
     status: mapStatus(p.status),
     progress: parseFloat(p.funding_percentage) || 0,
     targetAmount: parseFloat(p.required_budget) || 0,
     fundedAmount: parseFloat(p.raised_amount) || 0,
-    investors: p.investors_count,
+    investors: p.investors_count ?? 0,
     profit: parseFloat(p.profit_rate_percentage ?? "0") || 0,
     chartData: [] as number[],
     projectCode: p.id.slice(0, 8).toUpperCase(),
-    remainingDays: p.remaining_days,
+    remainingDays: p.remaining_days ?? 0,
     minInvestment: parseFloat(p.min_investment_amount) || 0,
-    maxInvestment: parseFloat(p.max_investment_amount ?? p.required_budget) || 0,
-    investmentPeriod: p.remaining_days,
+    maxInvestment:
+      parseFloat(p.max_investment_amount ?? p.required_budget) || 0,
+    investmentPeriod: p.remaining_days ?? 0,
     paymentPeriod: "ماهانه",
     guarantee: "ضمانت‌نامه بانکی",
     documents: [],
@@ -42,9 +81,13 @@ function toUIProject(p: BackendProject) {
 
 function mapStatus(s: string): "active" | "funded" | "closed" {
   const map: Record<string, "active" | "funded" | "closed"> = {
-    APPROVED: "active", FUNDING: "active", ACTIVE: "active",
-    FUNDING_COMPLETED: "funded", PROFIT_CALCULATION: "funded",
-    PROFIT_DISTRIBUTED: "funded", COMPLETED: "funded",
+    APPROVED: "active",
+    FUNDING: "active",
+    ACTIVE: "active",
+    FUNDING_COMPLETED: "funded",
+    PROFIT_CALCULATION: "funded",
+    PROFIT_DISTRIBUTED: "funded",
+    COMPLETED: "funded",
   };
   return map[s] ?? "closed";
 }
@@ -59,7 +102,9 @@ export default function ProjectsClient() {
     page_size: 12,
     ...(queryFilters.search ? { q: queryFilters.search } : {}),
     ...(queryFilters.status ? { status: queryFilters.status as never } : {}),
-    ...(queryFilters.industry ? { category: queryFilters.industry as never } : {}),
+    ...(queryFilters.industry
+      ? { category: queryFilters.industry as never }
+      : {}),
   });
 
   const projects = (data?.results ?? []).map(toUIProject);

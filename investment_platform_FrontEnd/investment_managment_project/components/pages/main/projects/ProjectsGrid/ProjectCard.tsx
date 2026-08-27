@@ -52,21 +52,26 @@ export default function ProjectCard({
         overflow-hidden
       "
     >
-      {/* Image */}
-      <div className="relative h-48 w-full overflow-hidden">
-
-        <Image
-          src={project.image}
-          alt={project.title}
-          fill
-          className="
-            object-cover
-            transition-transform
-            duration-700
-            group-hover:scale-105
-          "
-        />
-
+        {/* Image */}
+        <div className="relative h-48 w-full overflow-hidden bg-gray-100">
+          <Image
+            src={project.image}
+            alt={project.title}
+            fill
+            className="object-cover transition-transform duration-700 group-hover:scale-105"
+            // fallback اگر تصویر لود نشد
+            onError={(e) => {
+              const target = e.currentTarget as HTMLImageElement;
+              if (target.src !== "/images/img-1.png") {
+                target.src = "/images/img-1.png";
+              }
+            }}
+            unoptimized={
+              // برای URLهای خارجی که ممکن است مشکل داشته باشند
+              project.image.startsWith("http://")
+            }
+          />
+          
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
 
 
