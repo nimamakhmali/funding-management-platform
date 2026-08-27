@@ -1,4 +1,3 @@
-// app/(admin)/admin-project-management/page.tsx
 "use client";
 
 import { useState, useCallback } from "react";
@@ -8,6 +7,13 @@ import { useAdminProjects } from "@/lib/hooks/useAdmin";
 import { AdminProjectFilters } from "@/lib/api/services/admin.service";
 import { AdminProjectManagementFilterForm } from "@/lib/types/admin/admin-poject-management/AdminProjectManagementFilter";
 
+// mapping وضعیت فرانت → backend
+const STATUS_MAP: Record<string, string> = {
+  pending: "PENDING_REVIEW",
+  approved: "APPROVED",
+  rejected: "REJECTED",
+};
+
 export default function Page() {
   const [filters, setFilters] = useState<AdminProjectFilters>({
     page: 1,
@@ -16,13 +22,18 @@ export default function Page() {
 
   const { data, isLoading } = useAdminProjects(filters);
 
-  // useCallback برای جلوگیری از infinite loop
   const handleFilter = useCallback(
     (formValues: AdminProjectManagementFilterForm) => {
       setFilters((prev) => ({
         ...prev,
         q: formValues.search || undefined,
-        status: formValues.status !== "all" ? formValues.status : undefined,
+        // mapping وضعیت فرانت → backend
+        status:
+          formValues.status && formValues.status !== "all"
+            ? STATUS_MAP[formValues.status] ?? formValues.status
+            : undefined,
+        // owner فعلاً filter سمت backend پشتیبانی نمی‌شود (mock بود)
+        // date_from هم اضافه می‌شود اگر backend پشتیبانی کند
         page: 1,
       }));
     },

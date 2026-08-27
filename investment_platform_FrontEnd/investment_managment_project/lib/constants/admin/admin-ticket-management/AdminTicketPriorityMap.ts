@@ -2,23 +2,19 @@ import { TicketPriority } from "@/lib/types/admin/admin-ticket-management/AdminT
 
 export const ADMIN_TICKET_PRIORITY_MAP: Record<
   TicketPriority,
-  {
-    label: string;
-    className: string;
-  }
+  { label: string; className: string }
 > = {
-  urgent: {
-    label: "فوری",
+  // مقادیر واقعی backend
+  HIGH: {
+    label: "بالا",
     className: "bg-red-50 text-red-600",
   },
-
-  high: {
-    label: "بالا",
+  MEDIUM: {
+    label: "متوسط",
     className: "bg-yellow-50 text-yellow-700",
   },
-
-  medium: {
-    label: "متوسط",
-    className: "bg-orange-50 text-orange-600",
+  LOW: {
+    label: "پایین",
+    className: "bg-gray-100 text-gray-600",
   },
 };

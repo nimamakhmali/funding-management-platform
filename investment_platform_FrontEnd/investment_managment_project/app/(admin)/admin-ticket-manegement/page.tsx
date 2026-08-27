@@ -1,4 +1,3 @@
-// app/(admin)/admin-ticket-manegement/page.tsx
 "use client";
 
 import { useState, useCallback } from "react";
@@ -28,6 +27,17 @@ const TICKET_ASSIGNEES = [
   { id: 2, name: "پشتیبانی مالی", department: "مدیر مالی" },
 ];
 
+// تشخیص admin بودن فرستنده پیام
+function isAdminSender(sender: {
+  is_admin?: boolean;
+  role?: string;
+  phone_number?: string;
+}): boolean {
+  if (sender.is_admin === true) return true;
+  if (sender.role === "ADMIN" || sender.role === "admin") return true;
+  return false;
+}
+
 export default function TicketFilterSection() {
   const [filters, setFilters] = useState<AdminTicketFilters>({
     page: 1,
@@ -38,14 +48,17 @@ export default function TicketFilterSection() {
   const { data: ticketsData, isLoading } = useAdminTickets(filters);
   const { data: ticketDetail } = useAdminTicketDetail(selectedTicketId ?? "");
 
-  const handleFilter = useCallback((f: { status: string; priority: string; category: string }) => {
-    setFilters((prev) => ({
-      ...prev,
-      status: f.status !== "all" ? f.status : undefined,
-      priority: f.priority !== "all" ? f.priority : undefined,
-      page: 1,
-    }));
-  }, []);
+  const handleFilter = useCallback(
+    (f: { status: string; priority: string; category: string }) => {
+      setFilters((prev) => ({
+        ...prev,
+        status: f.status !== "all" ? f.status : undefined,
+        priority: f.priority !== "all" ? f.priority : undefined,
+        page: 1,
+      }));
+    },
+    []
+  );
 
   const handlePageChange = useCallback((page: number) => {
     setFilters((prev) => ({ ...prev, page }));
@@ -56,16 +69,24 @@ export default function TicketFilterSection() {
         id: ticketDetail.id,
         title: ticketDetail.subject,
         category: ticketDetail.priority || "عمومی",
-        createdAt: ticketDetail.created_at,
+        createdAt: ticketDetail.created_at
+          ? new Date(ticketDetail.created_at).toLocaleDateString("fa-IR")
+          : "—",
         messages: ticketDetail.messages.map(
           (m): TicketMessage => ({
             id: m.id,
             author: {
-              name: m.sender.full_name || m.sender.phone_number,
-              type: m.sender.is_admin ? "agent" : "customer",
+              // full_name اول، بعد phone_number
+              name:
+                m.sender.full_name ||
+                m.sender.phone_number ||
+                "کاربر",
+              type: isAdminSender(m.sender) ? "agent" : "customer",
             },
             message: m.message,
-            createdAt: m.created_at,
+            createdAt: m.created_at
+              ? new Date(m.created_at).toLocaleDateString("fa-IR")
+              : "—",
           })
         ),
       }
@@ -75,7 +96,10 @@ export default function TicketFilterSection() {
     ? {
         user: {
           id: ticketDetail.user.id,
-          name: ticketDetail.user.full_name || ticketDetail.user.phone_number || "کاربر",
+          name:
+            ticketDetail.user.full_name ||
+            ticketDetail.user.phone_number ||
+            "کاربر",
           level: ticketDetail.user.role || "عادی",
           openTickets: 1,
           avatar: "",
@@ -108,7 +132,10 @@ export default function TicketFilterSection() {
             />
           </div>
           <div className="xl:col-span-4">
-            <TicketSidebar data={sidebarData} ticketId={selectedTicketId} />
+            <TicketSidebar
+              data={sidebarData}
+              ticketId={selectedTicketId}
+            />
           </div>
         </div>
       )}

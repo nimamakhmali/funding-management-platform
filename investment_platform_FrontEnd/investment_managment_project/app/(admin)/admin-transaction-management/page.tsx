@@ -1,4 +1,3 @@
-// app/(admin)/admin-transaction-management/page.tsx
 "use client";
 
 import { useState, useCallback } from "react";
@@ -17,16 +16,23 @@ export default function Page() {
 
   const { data, isLoading } = useAdminTransactions(filters);
 
-  const handleFilter = useCallback((f: AdminTransactionFilterFormValues) => {
-    setFilters((prev) => ({
-      ...prev,
-      type: f.transaction !== "all" ? f.transaction : undefined,
-      min_amount: f.minPrice ?? undefined,
-      max_amount: f.maxPrice ?? undefined,
-      date_from: f.dateRange || undefined,
-      page: 1,
-    }));
-  }, []);
+  const handleFilter = useCallback(
+    (f: AdminTransactionFilterFormValues) => {
+      setFilters((prev) => ({
+        ...prev,
+        // فیلد transactionType در فرم، به type در API map می‌شود
+        type:
+          f.transactionType && f.transactionType !== "all"
+            ? f.transactionType
+            : undefined,
+        min_amount: f.minPrice ?? undefined,
+        max_amount: f.maxPrice ?? undefined,
+        date_from: f.dateRange && f.dateRange.trim() ? f.dateRange.trim() : undefined,
+        page: 1,
+      }));
+    },
+    []
+  );
 
   const handlePageChange = useCallback((page: number) => {
     setFilters((prev) => ({ ...prev, page }));

@@ -141,7 +141,7 @@ export interface AdminTicket {
   user: {
     id: string;
     phone_number: string;
-    full_name?: string;
+    full_name?: string;  // اضافه شد
   };
   subject: string;
   priority: string;
@@ -173,7 +173,7 @@ export interface AdminTicketDetail {
   user: {
     id: string;
     phone_number: string;
-    full_name?: string;
+    full_name?: string;  // اضافه شد
     role?: string;
   };
   subject: string;
@@ -186,8 +186,9 @@ export interface AdminTicketDetail {
     sender: {
       id: string;
       phone_number: string;
-      full_name?: string;
+      full_name?: string;  // اضافه شد - جایگزین username
       is_admin?: boolean;
+      role?: string;       // اضافه شد - برای تشخیص admin
     };
     message: string;
     attachment_url?: string;

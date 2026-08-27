@@ -1,7 +1,11 @@
-"use client"
+"use client";
+
 import { ReusableTable, Column } from "@/components/ui/ReusableTable";
 import { AdminUser } from "@/lib/api/services/admin.service";
-import { AdminUserManagement, UserRole } from "@/lib/types/admin/admin-user-management/AdminUserManagement";
+import {
+  AdminUserManagement,
+  UserRole,
+} from "@/lib/types/admin/admin-user-management/AdminUserManagement";
 import UserRoleBadge from "./UserRoleBadge";
 import AdminUserStatus from "./AdminUserStatus";
 import AdminUserAvatar from "./AdminUserAvatar";
@@ -16,25 +20,42 @@ interface Props {
   onPageChange: (page: number) => void;
 }
 
-function mapRole(role: string): UserRole {
-  if (role === "مدیر سیستم" || role === "سرمایه‌گذار" || role === "کارشناس مالی") {
-    return role;
-  }
-  return "سرمایه‌گذار";
+// نگه داشتن UUID اصلی در کنار mapped data
+interface MappedUser {
+  mapped: AdminUserManagement;
+  originalId: string;
 }
 
-function mapUser(u: AdminUser, index: number): AdminUserManagement {
-  const fullName = u.profile?.first_name && u.profile?.last_name
-    ? `${u.profile.first_name} ${u.profile.last_name}`
-    : u.phone_number;
+function mapRole(role: string): UserRole {
+  const roleMap: Record<string, UserRole> = {
+    ADMIN: "مدیر سیستم",
+    INVESTOR: "سرمایه‌گذار",
+    ENTREPRENEUR: "کارشناس مالی",
+    admin: "مدیر سیستم",
+    investor: "سرمایه‌گذار",
+    entrepreneur: "کارشناس مالی",
+  };
+  return roleMap[role] ?? "سرمایه‌گذار";
+}
+
+function mapUser(u: AdminUser, index: number): MappedUser {
+  const fullName =
+    u.profile?.first_name && u.profile?.last_name
+      ? `${u.profile.first_name} ${u.profile.last_name}`
+      : u.phone_number;
 
   return {
-    id: index + 1,
-    name: fullName,
-    email: u.profile?.email ?? "",
-    role: mapRole(u.role),
-    active: u.is_active,
-    joined: u.created_at,
+    originalId: u.id,
+    mapped: {
+      id: index + 1,
+      name: fullName,
+      email: u.profile?.email ?? u.phone_number,
+      role: mapRole(u.role),
+      active: u.is_active,
+      joined: u.created_at
+        ? new Date(u.created_at).toLocaleDateString("fa-IR")
+        : "—",
+    },
   };
 }
 
@@ -45,55 +66,45 @@ export default function AdminUserTable({
   currentPage,
   onPageChange,
 }: Props) {
-  const tableColumns: Column<AdminUserManagement>[] = [
+  const mappedUsers = data.map(mapUser);
+
+  const tableColumns: Column<MappedUser>[] = [
     {
       header: "نام کاربر",
-      accessor: (user) => (
-        <AdminUserAvatar
-          name={user.name}
-        />
-      ),
+      accessor: (item) => <AdminUserAvatar name={item.mapped.name} />,
     },
     {
       header: "ایمیل / شناسه",
-      accessor: (user) => (
-        <AdminUserInfo
-          email={user.email}
-          id={user.id}
-        />
+      accessor: (item) => (
+        <AdminUserInfo email={item.mapped.email} id={item.mapped.id} />
       ),
     },
     {
       header: "نقش",
-      accessor: (user) => (
-        <UserRoleBadge role={user.role} />
-      ),
+      accessor: (item) => <UserRoleBadge role={item.mapped.role} />,
     },
     {
       header: "وضعیت",
-      accessor: (user) => (
-        <AdminUserStatus
-          active={user.active}
-        />
-      ),
+      accessor: (item) => <AdminUserStatus active={item.mapped.active} />,
     },
     {
       header: "تاریخ عضویت",
-      accessor: (user) => user.joined,
+      accessor: (item) => item.mapped.joined,
     },
     {
       header: "عملیات",
-      accessor: (user) => (
-        <AdminUserActions user={user} />
+      accessor: (item) => (
+        <AdminUserActions
+          user={item.mapped}
+          userId={item.originalId}
+        />
       ),
     },
   ];
 
-  const tableData = data.map(mapUser);
-
   return (
     <ReusableTable
-      data={tableData}
+      data={mappedUsers}
       columns={tableColumns}
       enablePagination
       itemsPerPage={10}

@@ -6,34 +6,44 @@ export type BackendTicketStatus =
   | "OPEN"
   | "USER_REPLIED"
   | "ADMIN_REPLIED"
+  | "IN_PROGRESS"
   | "CLOSED";
 
 export type BackendTicketPriority = "LOW" | "MEDIUM" | "HIGH";
 
+export interface BackendTicketSender {
+  id: string;
+  phone_number: string;
+  full_name?: string;
+  // backend ممکن است is_staff یا role بفرستد
+  is_admin?: boolean;
+  role?: string;
+}
+
 export interface BackendTicketMessage {
   id: string;
-  sender: {
-    id: string;
-    username: string;
-    phone_number: string;
-  };
+  sender: BackendTicketSender;
   message: string;
   attachment_url: string | null;
   created_at: string;
 }
 
+export interface BackendTicketUser {
+  id: string;
+  phone_number: string;
+  full_name?: string;
+  role?: string;
+}
+
 export interface BackendTicket {
   id: string;
-  user: {
-    id: string;
-    username: string;
-    phone_number: string;
-  };
+  user: BackendTicketUser;
   subject: string;
   priority: BackendTicketPriority;
   status: BackendTicketStatus;
   created_at: string;
   updated_at: string;
+  messages_count?: number;
 }
 
 export interface BackendTicketDetail extends BackendTicket {
@@ -68,12 +78,7 @@ interface ApiResponse<T> {
 
 function unwrap<T>(response: { data: ApiResponse<T> | T }): T {
   const p = response.data;
-  if (
-    p &&
-    typeof p === "object" &&
-    "data" in p &&
-    "success" in p
-  ) {
+  if (p && typeof p === "object" && "data" in p && "success" in p) {
     return (p as ApiResponse<T>).data;
   }
   return p as T;
@@ -84,6 +89,8 @@ export const ticketService = {
   getTickets: async (params?: {
     page?: number;
     page_size?: number;
+    status?: string;
+    priority?: string;
   }): Promise<PaginatedTickets> => {
     const res = await axiosInstance.get("/tickets/", { params });
     return unwrap<PaginatedTickets>(res);
