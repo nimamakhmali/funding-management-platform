@@ -228,13 +228,14 @@ class AdminMonthlyChartView(APIView):
 
         six_months_ago = timezone.now() - datetime.timedelta(days=180)
 
+        # ── Investment فیلد created_at ندارد — از invest_date استفاده می‌کنیم ──
         monthly = (
             Investment.objects
             .filter(
                 status=InvestmentStatus.SUCCESSFUL,
-                created_at__gte=six_months_ago,
+                invest_date__gte=six_months_ago,   # ← تغییر: created_at → invest_date
             )
-            .annotate(month=TruncMonth("created_at"))
+            .annotate(month=TruncMonth("invest_date"))  # ← تغییر: created_at → invest_date
             .values("month")
             .annotate(total=Sum("amount"), count=Count("id"))
             .order_by("month")
